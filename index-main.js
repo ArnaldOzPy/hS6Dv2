@@ -1,6 +1,6 @@
 
-import { compressBWT_RLE, decompressBWT_RLE } from './bwt-rle.js';
 import { compressHuffman, decompressHuffman } from './hyper-huffman.js';
+import { compressBWT_RLE, decompressBWT_RLE } from './bwt-rle.js';
 
 function textEncoder(buffer) {
   return new TextDecoder().decode(buffer);
