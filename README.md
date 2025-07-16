@@ -76,15 +76,7 @@
 
   <hr style="border-color: #334155; margin: 2rem 0;">
 
-  <h2 style="color: #00ff88;">📁 Estructura del Proyecto</h2>
-  <pre style="background-color: #0f172a; padding: 1rem; border-radius: 0.5rem; overflow-x: auto;">
-📦 hS6Dv2/
-├── index.html              # Interfaz visual principal
-├── index-main.js           # Lógica completa de compresión y descompresión
-├── bwt-rle.js              # Capa 3: Burrows-Wheeler + RLE
-├── hyper-huffman.js        # Capa 4: Árbol de Huffman adaptativo
-├── style.css               # Estilos personalizados
-  </pre>
+  
 
   <hr style="border-color: #334155; margin: 2rem 0;">
 
