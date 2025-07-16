@@ -1,44 +1,145 @@
-<!DOCTYPE html>
-<html lang="es">
+<!DOCTYPE html><html lang="es">
 <head>
   <meta charset="UTF-8">
   <title>HyperStorage6D v2</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      margin: 0;
+      padding: 2rem;
+    }.container {
+  max-width: 800px;
+  margin: auto;
+  background: #1e293b;
+  padding: 2rem;
+  border-radius: 1rem;
+  box-shadow: 0 0 30px rgba(0, 255, 136, 0.2);
+}
+
+h1, h2 {
+  color: #00ff88;
+  margin-top: 0;
+}
+
+.section {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: #334155;
+  border-radius: 0.5rem;
+}
+
+input[type="file"] {
+  width: 100%;
+  margin-bottom: 1rem;
+  background: #475569;
+  color: white;
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  border: 1px solid #64748b;
+}
+
+button {
+  background: #00ff88;
+  color: #0f172a;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  font-weight: bold;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+button:hover {
+  background: #00e676;
+  transform: translateY(-2px);
+}
+
+.progress {
+  margin: 1rem 0;
+  background: #1e293b;
+  border-radius: 0.25rem;
+  overflow: hidden;
+  height: 1rem;
+  position: relative;
+}
+
+.progress-bar {
+  height: 100%;
+  background: #00ff88;
+  width: 0%;
+  transition: width 0.3s;
+}
+
+.eta {
+  position: absolute;
+  top: -1.5rem;
+  right: 0;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.stats {
+  background: #1e293b;
+  padding: 1rem;
+  border-radius: 0.25rem;
+  margin-top: 1rem;
+}
+
+.download-link {
+  display: none;
+  background: #00ff88;
+  color: #0f172a;
+  text-align: center;
+  padding: 0.75rem;
+  border-radius: 0.25rem;
+  text-decoration: none;
+  font-weight: bold;
+  margin-top: 1rem;
+  display: block;
+}
+
+.download-link:hover {
+  background: #00e676;
+}
+
+  </style>
 </head>
 <body>
   <div class="container">
-    <h1>HyperStorage6D v2</h1>
-    
-    <div class="section">
-      <h2>🗜️ Comprimir Archivo</h2>
-      <input type="file" id="fileInput">
-      <button id="compressBtn">Comprimir</button>
-      <div class="progress">
-        <div class="progress-bar" id="compressProgress"></div>
-      </div>
-      <div class="stats">
-        <div>Tamaño original: <span id="originalSize">-</span></div>
-        <div>Tamaño comprimido: <span id="compressedSize">-</span></div>
-        <div>Ratio: <span id="compressionRatio">-</span></div>
-      </div>
-      <a id="downloadCompressed" class="download-link">Descargar .hs6d</a>
-    </div>
-
-    <div class="section">
-      <h2>📂 Descomprimir Archivo</h2>
-      <input type="file" id="decompressInput" accept=".hs6d">
-      <button id="decompressBtn">Descomprimir</button>
-      <div class="progress">
-        <div class="progress-bar" id="decompressProgress"></div>
-      </div>
-      <div class="stats">
-        <div>Tamaño comprimido: <span id="inputCompressedSize">-</span></div>
-        <div>Tamaño descomprimido: <span id="decompressedSize">-</span></div>
-      </div>
-      <a id="downloadDecompressed" class="download-link">Descargar original</a>
-    </div>
+    <h1>🧠 HyperStorage6D v2</h1><div class="section">
+  <h2>🗜️ Comprimir Archivo</h2>
+  <input type="file" id="fileInput">
+  <button id="compressBtn">Comprimir</button>
+  <div class="progress">
+    <div class="progress-bar" id="compressProgress"></div>
+    <div class="eta" id="compressETA">ETA: --</div>
   </div>
+  <div class="stats">
+    <div>Tamaño original: <span id="originalSize">-</span></div>
+    <div>Tamaño comprimido: <span id="compressedSize">-</span></div>
+    <div>Ratio: <span id="compressionRatio">-</span></div>
+  </div>
+  <a id="downloadCompressed" class="download-link">Descargar .hs6d</a>
+</div>
 
-  <script type="module" src="index-main.js"></script>
-</body>
+<div class="section">
+  <h2>📂 Descomprimir Archivo</h2>
+  <input type="file" id="decompressInput" accept=".hs6d">
+  <button id="decompressBtn">Descomprimir</button>
+  <div class="progress">
+    <div class="progress-bar" id="decompressProgress"></div>
+    <div class="eta" id="decompressETA">ETA: --</div>
+  </div>
+  <div class="stats">
+    <div>Tamaño comprimido: <span id="inputCompressedSize">-</span></div>
+    <div>Tamaño descomprimido: <span id="decompressedSize">-</span></div>
+  </div>
+  <a id="downloadDecompressed" class="download-link">Descargar original</a>
+</div>
+
+  </div>  <script type="module" src="index-main.js"></script></body>
 </html>
