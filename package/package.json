@@ -1,0 +1,15 @@
+{
+  "name": "hs6dv2",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node tests/stress-test.js",
+    "test:small": "node tests/stress-test.js small",
+    "test:medium": "node tests/stress-test.js medium",
+    "test:large": "node tests/stress-test.js large"
+  },
+  "dependencies": {
+    "fs": "latest",
+    "performance-now": "^2.1.0"
+  }
+}
