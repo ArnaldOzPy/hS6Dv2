@@ -94,7 +94,7 @@
   <h2 style="color: #00ff88;">👤 Autor</h2>
   <p>
     <strong>Arnaldo Adrian Ozorio Olea</strong><br>
-    <strong>BIG BOSS Informática|| Servicios</strong>
+    <strong>BIG BOSS Informática|| Servicios</strong><br>
     📍 Capiatá - Paraguay<br>
     📧 <a href="mailto:contacto.bigbossinformatica@gmail.com" style="color:#00ff88;">asesor.teducativo@gmail.com</a><br>
     🔗 <a href="https://github.com/ArnaldOzPy" target="_blank" style="color:#00ff88;">github.com/ArnaldOzPy</a>
