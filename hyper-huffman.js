@@ -1,77 +1,94 @@
+export function compressHS6D(data) {
+  const frequencyMap = buildFrequencyMap(data);
+  const huffmanTree = buildHuffmanTree(frequencyMap);
+  const codes = buildCodeMap(huffmanTree);
+  const encodedData = encodeData(data, codes);
+  
+  return {
+    compressed: encodedData,
+    tree: frequencyMap,
+    originalSize: data.length
+  };
+}
 
-export function buildFrequencyMap(data) {
-  const freq = {};
-  for (let char of data) {
-    freq[char] = (freq[char] || 0) + 1;
+export function decompressHS6D(compressedData, frequencyMap) {
+  const huffmanTree = buildHuffmanTree(frequencyMap);
+  return decodeData(compressedData, huffmanTree);
+}
+
+function buildFrequencyMap(data) {
+  const freq = new Array(256).fill(0);
+  for (const byte of data) {
+    freq[byte]++;
   }
   return freq;
 }
 
-export function buildHuffmanTree(freqMap) {
-  const nodes = Object.entries(freqMap).map(([char, freq]) => ({ char, freq }));
+function buildHuffmanTree(freqMap) {
+  const nodes = freqMap
+    .map((freq, byte) => ({ byte, freq }))
+    .filter(node => node.freq > 0);
+  
   while (nodes.length > 1) {
     nodes.sort((a, b) => a.freq - b.freq);
     const left = nodes.shift();
     const right = nodes.shift();
-    nodes.push({ left, right, freq: left.freq + right.freq });
+    nodes.push({
+      left, 
+      right,
+      freq: left.freq + right.freq,
+      byte: null
+    });
   }
+  
   return nodes[0];
 }
 
-function buildCodes(node, prefix = "", map = {}) {
-  if (node.char) {
-    map[node.char] = prefix;
+function buildCodeMap(node, prefix = '', map = {}) {
+  if (node.byte !== null) {
+    map[node.byte] = prefix;
   } else {
-    buildCodes(node.left, prefix + "0", map);
-    buildCodes(node.right, prefix + "1", map);
+    buildCodeMap(node.left, prefix + '0', map);
+    buildCodeMap(node.right, prefix + '1', map);
   }
   return map;
 }
 
-export function compressHuffman(text) {
-  const freqMap = buildFrequencyMap(text);
-  const tree = buildHuffmanTree(freqMap);
-  const codes = buildCodes(tree);
-
-  let binaryStr = "";
-  for (let char of text) {
-    binaryStr += codes[char];
-  }
-
-  const padLength = (8 - binaryStr.length % 8) % 8;
-  binaryStr = binaryStr.padEnd(binaryStr.length + padLength, "0");
-
-  const byteArr = new Uint8Array((binaryStr.length + 7) >> 3);
-  for (let i = 0; i < byteArr.length; i++) {
-    byteArr[i] = parseInt(binaryStr.slice(i * 8, i * 8 + 8), 2);
-  }
-
-  return {
-    compressed: byteArr,
-    tree: JSON.stringify(freqMap),
-    padLength
-  };
-}
-
-export function decompressHuffman(byteArr, freqMapStr, padLength) {
-  const freqMap = JSON.parse(freqMapStr);
-  const tree = buildHuffmanTree(freqMap);
-
-  let binaryStr = "";
-  for (let byte of byteArr) {
-    binaryStr += byte.toString(2).padStart(8, "0");
-  }
-  binaryStr = binaryStr.slice(0, binaryStr.length - padLength);
-
-  let output = "";
-  let node = tree;
-  for (let bit of binaryStr) {
-    node = bit === "0" ? node.left : node.right;
-    if (node.char) {
-      output += node.char;
-      node = tree;
+function encodeData(data, codes) {
+  let bitBuffer = '';
+  const output = [];
+  
+  for (const byte of data) {
+    bitBuffer += codes[byte];
+    while (bitBuffer.length >= 8) {
+      output.push(parseInt(bitBuffer.substring(0, 8), 2));
+      bitBuffer = bitBuffer.substring(8);
     }
   }
+  
+  if (bitBuffer.length > 0) {
+    output.push(parseInt(bitBuffer.padEnd(8, '0'), 2));
+  }
+  
+  return new Uint8Array(output);
+}
 
-  return output;
+function decodeData(encodedData, huffmanTree) {
+  let bitString = '';
+  for (const byte of encodedData) {
+    bitString += byte.toString(2).padStart(8, '0');
+  }
+  
+  const output = [];
+  let currentNode = huffmanTree;
+  
+  for (const bit of bitString) {
+    currentNode = bit === '0' ? currentNode.left : currentNode.right;
+    if (currentNode.byte !== null) {
+      output.push(currentNode.byte);
+      currentNode = huffmanTree;
+    }
+  }
+  
+  return new Uint8Array(output);
 }
