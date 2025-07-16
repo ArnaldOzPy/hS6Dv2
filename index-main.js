@@ -1,54 +1,62 @@
-import { compressHS6D, decompressHS6D } from './hyper-huffman.js'; import { transform6D, inverse6D } from './bwt-rle.js';
+// index-main.js
 
-const COMPRESS_WORKER = new Worker('./workers/compress-worker.js'); const DECOMPRESS_WORKER = new Worker('./workers/decompress-worker.js');
+import { compressData, decompressData } from './compress-worker.js'; import { buildSuffixArray } from './suffix-array.js'; import { crc32 } from './crc32.js'; import { findRepeatedBlocks } from './block-match.js';
 
-const compressBtn = document.getElementById('compressBtn'); const decompressBtn = document.getElementById('decompressBtn'); const compressProgress = document.getElementById('compressProgress'); const decompressProgress = document.getElementById('decompressProgress'); const compressETA = document.getElementById('compressETA'); const decompressETA = document.getElementById('decompressETA');
+const fileInput = document.getElementById('fileInput'); const compressBtn = document.getElementById('compressBtn'); const decompressBtn = document.getElementById('decompressBtn'); const resultText = document.getElementById('resultText');
 
-compressBtn.addEventListener('click', async () => { const file = document.getElementById('fileInput').files[0]; if (!file) return alert("Selecciona un archivo para comprimir");
+compressBtn.addEventListener('click', async () => { const file = fileInput.files[0]; if (!file) return alert('Selecciona un archivo.'); const arrayBuffer = await file.arrayBuffer(); const uint8Data = new Uint8Array(arrayBuffer);
 
-const reader = new FileReader(); reader.onload = async (e) => { const buffer = e.target.result; const originalData = new Uint8Array(buffer); const safeCopy = new Uint8Array(originalData); // Copia segura
+const compressed = await compressData(uint8Data); resultText.value = btoa(String.fromCharCode(...compressed)); });
 
-simulateProgress(compressProgress, compressETA);
-COMPRESS_WORKER.postMessage(safeCopy, [safeCopy.buffer]);
+decompressBtn.addEventListener('click', async () => { const base64 = resultText.value; const binary = atob(base64); const uint8Data = new Uint8Array(binary.length); for (let i = 0; i < binary.length; i++) uint8Data[i] = binary.charCodeAt(i);
 
-}; reader.readAsArrayBuffer(file); });
+const decompressed = await decompressData(uint8Data); resultText.value = new TextDecoder().decode(decompressed); });
 
-decompressBtn.addEventListener('click', () => { const file = document.getElementById('decompressInput').files[0]; if (!file) return alert("Selecciona un archivo .hs6d para descomprimir");
+// compress-worker.js
 
-const reader = new FileReader(); reader.onload = (e) => { const buffer = e.target.result; const originalData = new Uint8Array(buffer); const safeCopy = new Uint8Array(originalData); // Copia segura
+import { bwtEncode, rleEncode, huffmanEncode } from './compressors.js'; import { findRepeatedBlocks } from './block-match.js'; import { crc32 } from './crc32.js';
 
-simulateProgress(decompressProgress, decompressETA);
-DECOMPRESS_WORKER.postMessage(safeCopy, [safeCopy.buffer]);
+export async function compressData(data) { const crc = crc32(data);
 
-}; reader.readAsArrayBuffer(file); });
+const patternMap = findRepeatedBlocks(data, 512); const cleanedData = data.filter((_, i) => !patternMap.has(i));
 
-COMPRESS_WORKER.onmessage = (e) => { const { compressed, originalSize, compressedSize, error } = e.data; if (error) return alert("Error al comprimir: " + error);
+const bwt = bwtEncode(cleanedData); const rle = rleEncode(bwt); const huffman = huffmanEncode(rle);
 
-const blob = new Blob([compressed], { type: 'application/hs6d' }); const url = URL.createObjectURL(blob);
+const crcBytes = new Uint8Array(4); const dv = new DataView(crcBytes.buffer); dv.setUint32(0, crc);
 
-document.getElementById('originalSize').textContent = formatSize(originalSize); document.getElementById('compressedSize').textContent = formatSize(compressedSize); document.getElementById('compressionRatio').textContent = ${(originalSize / compressedSize).toFixed(2)}:1;
+return new Uint8Array([...crcBytes, ...huffman]); }
 
-const link = document.getElementById('downloadCompressed'); link.href = url; link.download = compressed_${Date.now()}.hs6d; link.style.display = 'block';
+// decompress-worker.js
 
-compressProgress.style.width = '100%'; compressETA.textContent = 'ETA: 0s'; };
+import { bwtDecode, rleDecode, huffmanDecode } from './compressors.js'; import { crc32 } from './crc32.js';
 
-DECOMPRESS_WORKER.onmessage = (e) => { const { decompressed, compressedSize, error } = e.data; if (error) return alert("Error al descomprimir: " + error);
+export async function decompressData(data) { const storedCRC = new DataView(data.buffer).getUint32(0); const payload = data.slice(4);
 
-const blob = new Blob([decompressed]); const url = URL.createObjectURL(blob);
+const huffman = huffmanDecode(payload); const rle = rleDecode(huffman); const bwt = bwtDecode(rle);
 
-document.getElementById('inputCompressedSize').textContent = formatSize(compressedSize); document.getElementById('decompressedSize').textContent = formatSize(decompressed.length);
+const calcCRC = crc32(bwt); if (storedCRC !== calcCRC) throw new Error('CRC mismatch. Archivo corrupto.');
 
-const link = document.getElementById('downloadDecompressed'); link.href = url; link.download = original_${Date.now()}; link.style.display = 'block';
+return bwt; }
 
-decompressProgress.style.width = '100%'; decompressETA.textContent = 'ETA: 0s'; };
+// block-match.js
 
-function formatSize(bytes) { if (bytes >= 1048576) return ${(bytes / 1048576).toFixed(2)} MB; if (bytes >= 1024) return ${(bytes / 1024).toFixed(2)} KB; return ${bytes} bytes; }
+export function findRepeatedBlocks(data, blockSize = 512) { const seen = new Map(); const repeats = new Set();
 
-function simulateProgress(bar, eta) { let progress = 0; let duration = 5 + Math.random() * 4; let start = Date.now();
+for (let i = 0; i < data.length - blockSize; i += blockSize) { const block = data.slice(i, i + blockSize); const key = block.join(',');
 
-const interval = setInterval(() => { const elapsed = (Date.now() - start) / 1000; progress = Math.min((elapsed / duration) * 100, 98); bar.style.width = ${progress.toFixed(0)}%; let remaining = Math.max(duration - elapsed, 0); eta.textContent = ETA: ${remaining.toFixed(1)}s;
+if (seen.has(key)) {
+  repeats.add(i);
+} else {
+  seen.set(key, i);
+}
 
-if (progress >= 98) clearInterval(interval);
+}
 
-}, 200); }
+return repeats; }
+
+// crc32.js
+
+export function crc32(buf) { const table = new Uint32Array(256).map((_, n) => { for (let k = 0; k < 8; k++) n = n & 1 ? 0xEDB88320 ^ (n >>> 1) : n >>> 1; return n >>> 0; });
+
+let crc = 0 ^ (-1); for (let i = 0; i < buf.length; i++) { crc = (crc >>> 8) ^ table[(crc ^ buf[i]) & 0xFF]; } return (crc ^ (-1)) >>> 0; }
 
