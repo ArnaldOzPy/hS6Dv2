@@ -1,6 +1,6 @@
 <div style="max-width: 900px; margin: auto; padding: 2rem; background-color: #1e293b; color: #e2e8f0; font-family: 'Segoe UI', sans-serif; border-radius: 1rem; box-shadow: 0 0 30px rgba(0,255,136,0.15);">
 
-  <h1 style="color: #00ff88;">🧠 HyperStorage6D Multicapa</h1>
+  <h1 style="color: #00ff88;">HyperStorage6D Multicapa</h1>
   <p>Compresión real de archivos con algoritmos avanzados implementados en JavaScript. Inspirado en arquitecturas de codificación de 6 dimensiones para almacenamiento eficiente a nivel de bit.</p>
   
   <p>🌐 <strong>Sitio en vivo:</strong> <a href="https://arnaldozpy.github.io/hS6Dv2/" target="_blank" style="color:#00ff88;">https://arnaldozpy.github.io/hS6Dv2/</a></p>
