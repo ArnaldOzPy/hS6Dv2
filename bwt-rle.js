@@ -11,14 +11,26 @@ export function inverse6D(encoded) {
 
 function buildSuffixArray(data) {
   const n = data.length;
-  const suffixes = Array.from({ length: n }, (_, i) => i);
-  
-  suffixes.sort((a, b) => {
-    while (a < n && b < n && data[a] === data[b]) {
-      a++;
-      b++;
+  const suffixes = new Array(n);
+  const buckets = Array.from({ length: 256 }, () => []);
+
+  for (let i = 0; i < n; i++) {
+    buckets[data[i]].push(i);
+  }
+
+  let index = 0;
+  for (let b = 0; b < 256; b++) {
+    for (const pos of buckets[b]) {
+      suffixes[index++] = pos;
     }
-    return a === n ? -1 : b === n ? 1 : data[a] - data[b];
+  }
+
+  suffixes.sort((a, b) => {
+    for (let i = 0; a + i < n && b + i < n; i++) {
+      const diff = data[a + i] - data[b + i];
+      if (diff !== 0) return diff;
+    }
+    return (n - a) - (n - b);
   });
 
   return suffixes;
@@ -35,7 +47,7 @@ function applyBWT(data, suffixArray) {
 function encodeRLE(data) {
   const output = [];
   let count = 1;
-  
+
   for (let i = 1; i <= data.length; i++) {
     if (i < data.length && data[i] === data[i - 1]) {
       count++;
@@ -52,7 +64,7 @@ function encodeRLE(data) {
 function decodeRLE(encoded) {
   const output = [];
   let i = 0;
-  
+
   while (i < encoded.length) {
     const value = encoded[i++];
     const isCount = i < encoded.length && typeof encoded[i] === 'number';
