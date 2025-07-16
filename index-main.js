@@ -6,19 +6,19 @@ const compressBtn = document.getElementById('compressBtn'); const decompressBtn 
 
 compressBtn.addEventListener('click', async () => { const file = document.getElementById('fileInput').files[0]; if (!file) return alert("Selecciona un archivo para comprimir");
 
-const reader = new FileReader(); reader.onload = async (e) => { const buffer = e.target.result; const data = new Uint8Array(buffer); let startTime = Date.now();
+const reader = new FileReader(); reader.onload = async (e) => { const buffer = e.target.result; const originalData = new Uint8Array(buffer); const safeCopy = new Uint8Array(originalData); // Copia segura
 
 simulateProgress(compressProgress, compressETA);
-COMPRESS_WORKER.postMessage(data, [data.buffer]);
+COMPRESS_WORKER.postMessage(safeCopy, [safeCopy.buffer]);
 
 }; reader.readAsArrayBuffer(file); });
 
 decompressBtn.addEventListener('click', () => { const file = document.getElementById('decompressInput').files[0]; if (!file) return alert("Selecciona un archivo .hs6d para descomprimir");
 
-const reader = new FileReader(); reader.onload = (e) => { const buffer = e.target.result; const uint8Data = new Uint8Array(buffer);
+const reader = new FileReader(); reader.onload = (e) => { const buffer = e.target.result; const originalData = new Uint8Array(buffer); const safeCopy = new Uint8Array(originalData); // Copia segura
 
 simulateProgress(decompressProgress, decompressETA);
-DECOMPRESS_WORKER.postMessage(uint8Data, [uint8Data.buffer]);
+DECOMPRESS_WORKER.postMessage(safeCopy, [safeCopy.buffer]);
 
 }; reader.readAsArrayBuffer(file); });
 
@@ -52,24 +52,3 @@ if (progress >= 98) clearInterval(interval);
 
 }, 200); }
 
-  }
-
-  const { decompressed, compressedSize } = e.data;
-  const blob = new Blob([decompressed]);
-  const url = URL.createObjectURL(blob);
-
-  document.getElementById('decompressProgress').style.width = '100%';
-  document.getElementById('inputCompressedSize').textContent = formatSize(compressedSize);
-  document.getElementById('decompressedSize').textContent = formatSize(decompressed.length);
-
-  const link = document.getElementById('downloadDecompressed');
-  link.href = url;
-  link.download = `original_${Date.now()}`;
-  link.style.display = 'block';
-};
-
-function formatSize(bytes) {
-  if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(2)} MB`;
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(2)} KB`;
-  return `${bytes} bytes`;
-}
