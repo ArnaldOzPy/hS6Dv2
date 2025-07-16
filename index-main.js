@@ -1,4 +1,4 @@
-// index-main.js
+
 
 import { compressData, decompressData } from './compress-worker.js'; import { buildSuffixArray } from './suffix-array.js'; import { crc32 } from './crc32.js'; import { findRepeatedBlocks } from './block-match.js';
 
@@ -12,7 +12,7 @@ decompressBtn.addEventListener('click', async () => { const base64 = resultText.
 
 const decompressed = await decompressData(uint8Data); resultText.value = new TextDecoder().decode(decompressed); });
 
-// compress-worker.js
+
 
 import { bwtEncode, rleEncode, huffmanEncode } from './compressors.js'; import { findRepeatedBlocks } from './block-match.js'; import { crc32 } from './crc32.js';
 
@@ -26,7 +26,7 @@ const crcBytes = new Uint8Array(4); const dv = new DataView(crcBytes.buffer); dv
 
 return new Uint8Array([...crcBytes, ...huffman]); }
 
-// decompress-worker.js
+
 
 import { bwtDecode, rleDecode, huffmanDecode } from './compressors.js'; import { crc32 } from './crc32.js';
 
@@ -38,7 +38,7 @@ const calcCRC = crc32(bwt); if (storedCRC !== calcCRC) throw new Error('CRC mism
 
 return bwt; }
 
-// block-match.js
+
 
 export function findRepeatedBlocks(data, blockSize = 512) { const seen = new Map(); const repeats = new Set();
 
@@ -54,7 +54,7 @@ if (seen.has(key)) {
 
 return repeats; }
 
-// crc32.js
+
 
 export function crc32(buf) { const table = new Uint32Array(256).map((_, n) => { for (let k = 0; k < 8; k++) n = n & 1 ? 0xEDB88320 ^ (n >>> 1) : n >>> 1; return n >>> 0; });
 
