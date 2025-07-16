@@ -1,40 +1,47 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>HyperStorage6D - Compresión Huffman</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8" />
+  <title>HyperStorage6D Multicapa</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #111; color: #eee; padding: 2rem; }
+    .container { max-width: 800px; margin: auto; background: #1e1e1e; padding: 2rem; border-radius: 12px; box-shadow: 0 0 15px #00ff88; }
+    input[type=file], button, a.download-link {
+      margin-top: 1rem; display: block; width: 100%; padding: 0.5rem;
+      font-size: 1rem; background: #00ff88; border: none;
+      border-radius: 6px; cursor: pointer; text-align: center;
+      text-decoration: none; color: black;
+    }
+    .progress-bar { height: 20px; background: #444; border-radius: 10px; overflow: hidden; margin-top: 0.5rem; }
+    .progress-fill { height: 100%; background: #00ff88; width: 0%; text-align: center; color: black; line-height: 20px; }
+    .info { margin-top: 1rem; background: #222; padding: 1rem; border-radius: 8px; }
+    .info div { margin-bottom: 0.5rem; }
+  </style>
 </head>
 <body>
-<div class="container">
-  <h1>HyperStorage6D v1 - Huffman</h1>
+  <div class="container">
+    <h1>🧠 HyperStorage6D: Compresión Multicapa</h1>
 
-  <div class="section">
-    <h2>🗜️ Compresión</h2>
-    <input type="file" id="compressInput">
-    <div class="progress-bar"><div class="progress-fill" id="compressProgress">0%</div></div>
+    <h2>🗜️ Comprimir Archivo</h2>
+    <input type="file" id="fileInput">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill">0%</div></div>
     <div class="info">
       <div><strong>Tamaño original:</strong> <span id="originalSize">-</span></div>
-      <div><strong>Tamaño comprimido:</strong> <span id="compressedSize">-</span></div>
-      <div><strong>Compresión lograda:</strong> <span id="compressionRate">-</span></div>
+      <div><strong>Tamaño final comprimido:</strong> <span id="finalSize">-</span></div>
+      <div><strong>Reducción total:</strong> <span id="compressionRate">-</span></div>
     </div>
     <a id="downloadCompressed" class="download-link" style="display:none;">Descargar archivo .h6d</a>
-  </div>
 
-  <div class="section">
-    <h2>📂 Descompresión</h2>
+    <h2>📂 Descomprimir .h6d</h2>
     <input type="file" id="decompressInput">
     <div class="progress-bar"><div class="progress-fill" id="decompressProgress">0%</div></div>
     <div class="info">
-      <div><strong>Tamaño comprimido:</strong> <span id="compressedSizeIn">-</span></div>
-      <div><strong>Tamaño descomprimido:</strong> <span id="decompressedSize">-</span></div>
+      <div><strong>Tamaño comprimido:</strong> <span id="compressedInputSize">-</span></div>
+      <div><strong>Tamaño descomprimido:</strong> <span id="decompressedOutputSize">-</span></div>
     </div>
     <a id="downloadOriginal" class="download-link" style="display:none;">Descargar archivo original</a>
   </div>
-</div>
-<script type="module" src="hyper-huffman.js">
-import { compressBWT_RLE } from './bwt-rle.js';
-</script>
+
+  <script type="module" src="index-main.js"></script>
 </body>
 </html>
