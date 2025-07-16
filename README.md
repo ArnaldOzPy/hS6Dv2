@@ -1,16 +1,11 @@
-🧠 HyperStorage6D Multicapa
+ HyperStorage6D Multicapa
 
 Compresión real de archivos con algoritmos avanzados implementados en JavaScript. Inspirado en arquitecturas de codificación de 6 dimensiones para almacenamiento eficiente a nivel de bit.
 
-> 📍 Repositorio oficial: https://github.com/ArnaldOzPy/hS6Dv2
 🌐 Sitio en vivo: https://arnaldozpy.github.io/hS6Dv2/
 
 
-
-
----
-
-📦 ¿Qué hace este sistema?
+ ¿Qué hace este sistema?
 
 Permite subir, comprimir y descomprimir archivos reales desde el navegador utilizando una arquitectura multicapa:
 
@@ -25,7 +20,7 @@ Capa	Técnica Usada	Función
 
 ---
 
-✨ Características principales
+ Características principales
 
 ✅ Compresión y descompresión real (bit a bit)
 
@@ -43,7 +38,7 @@ Capa	Técnica Usada	Función
 
 ---
 
-📚 Cómo usar
+ Cómo usar
 
 🧪 1. Subir un archivo:
 
@@ -78,7 +73,7 @@ Verás el tamaño recuperado y podrás descargar el archivo original
 
 ---
 
-📁 Estructura del Proyecto
+ Estructura del Proyecto
 
 📦 hS6Dv2/
 ├── index.html              # Interfaz visual principal
@@ -90,21 +85,9 @@ Verás el tamaño recuperado y podrás descargar el archivo original
 
 ---
 
-🧠 ¿Qué es HyperStorage6D?
-
-Es una propuesta de almacenamiento multicapas en 6 dimensiones, en la cual:
-
-Cada bit se analiza en contexto dimensional (posición, redundancia, predictibilidad, frecuencia).
-
-Se busca reducir el peso digital sin pérdida de integridad.
-
-El objetivo final es llevar esta arquitectura al nivel de procesamiento binario a nivel de hardware/software.
-
-
-
 ---
 
-🚀 Próximas mejoras
+ Próximas mejoras
 
 📐 Visualización del Árbol de Huffman en tiempo real
 
@@ -120,7 +103,7 @@ El objetivo final es llevar esta arquitectura al nivel de procesamiento binario 
 
 ---
 
-👨‍🔬 Autor
+ Autor
 
 Arnaldo Adrian Ozorio Olea
 📍 Capiatá - Paraguay
@@ -130,10 +113,7 @@ Arnaldo Adrian Ozorio Olea
 
 ---
 
-🛡️ Licencia
+ Licencia
 
 Este proyecto se encuentra en proceso de registro y protección de propiedad intelectual como parte de la arquitectura HyperStorage6D - Almacenamiento 1Bit-6D.
 Su uso sin autorización para fines comerciales queda restringido y penalizado conforme a la legislación vigente.
-
-
--
