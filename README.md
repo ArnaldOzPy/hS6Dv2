@@ -35,6 +35,19 @@ Capa	Técnica Usada	Función
 ⚙️ 100% en JavaScript puro, compatible con HTML y plataformas web
 
 
+---
+
+📊 Comparativa de compresión del archivo
+
+Archivo original: 3.81 MB (3,808,689 bytes)
+
+Compresor	Tamaño       Comprimido	Ratio (%)
+
+Gzip	      952,335 bytes 	 25.0 %
+Bzip2	     719,404 bytes	  18.9 %
+XZ (LZMA) 	676,956 bytes	  17.8 %
+HyperStorage6D	705,736 bytes	18.5 % ✅
+
 
 ---
 
