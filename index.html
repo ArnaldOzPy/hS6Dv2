@@ -2,111 +2,118 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Compresión HyperStorage6D</title>
+  <title>HyperStorage6D – Compresor Experimental</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    body { font-family: sans-serif; padding: 2rem; background: #f9f9f9; }
-    pre { background: #fff; padding: 1rem; border: 1px solid #ddd; max-height: 300px; overflow: auto; }
-    .block { margin-top: 2rem; }
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: #f4f4f4;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      padding: 30px;
+    }
+    h1 {
+      text-align: center;
+      color: #444;
+    }
+    .section {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .section h2 {
+      margin-top: 0;
+      color: #222;
+    }
+    input[type="file"] {
+      display: none;
+    }
+    label {
+      display: inline-block;
+      padding: 10px 20px;
+      background-color: #007BFF;
+      color: white;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    .btn {
+      display: inline-block;
+      padding: 10px 20px;
+      margin-top: 10px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .btn:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    .progress-bar {
+      height: 20px;
+      background-color: #ddd;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+    .progress-fill {
+      height: 100%;
+      background-color: #17a2b8;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    .result, .result-decompress {
+      margin-top: 15px;
+      font-size: 0.95em;
+      color: #333;
+    }
+    .download-btn {
+      margin-top: 10px;
+      display: none;
+      background-color: #ffc107;
+      color: #000;
+    }
   </style>
 </head>
 <body>
-  <h2>HyperStorage6D – Compresor Experimental</h2>
+  <div class="container">
+    <h1>🚀 HyperStorage6D – Compresor Experimental</h1>
 
-  <div class="block">
-    <input type="file" id="fileInput">
-    <button onclick="procesarArchivo()">📦 Comprimir</button>
+    <!-- Sección de Compresión -->
+    <div class="section">
+      <h2>📦 Compresión</h2>
+      <label for="fileInput">📤 Subir archivo</label>
+      <input type="file" id="fileInput">
+      <div class="progress-bar"><div class="progress-fill" id="progressCompress"></div></div>
+      <button class="btn" id="compressBtn" disabled>📦 Comprimir</button>
+      <div class="result" id="compressResult"></div>
+      <button class="btn download-btn" id="downloadCompressed">⬇️ Descargar comprimido</button>
+    </div>
+
+    <!-- Sección de Descompresión -->
+    <div class="section">
+      <h2>📂 Descompresión</h2>
+      <label for="fileDecompressInput">📤 Subir archivo</label>
+      <input type="file" id="fileDecompressInput">
+      <div class="progress-bar"><div class="progress-fill" id="progressDecompress"></div></div>
+      <button class="btn" id="decompressBtn" disabled>📂 Descomprimir</button>
+      <div class="result-decompress" id="decompressResult"></div>
+      <button class="btn download-btn" id="downloadDecompressed">⬇️ Descargar descomprimido</button>
+    </div>
   </div>
 
-  <div class="block">
-    <h3>📤 Resultado:</h3>
-    <pre id="output">Esperando archivo...</pre>
-  </div>
-
-  <script>
-    function procesarArchivo() {
-      const input = document.getElementById('fileInput');
-      const output = document.getElementById('output');
-
-      if (!input.files || input.files.length === 0) {
-        output.textContent = "⚠️ No se seleccionó ningún archivo.";
-        return;
-      }
-
-      const archivo = input.files[0];
-      const lector = new FileReader();
-
-      lector.onload = function(e) {
-        const arrayBuffer = e.target.result;
-        const byteArray = new Uint8Array(arrayBuffer);
-
-        // Compresión
-        const comprimido = hyperCompress(byteArray);
-
-        output.textContent =
-          `✅ Archivo cargado: ${archivo.name}\n` +
-          `🔸 Tamaño original: ${byteArray.length} bytes\n` +
-          `🔸 Tamaño comprimido: ${comprimido.length} bytes\n` +
-          `🔸 Ratio: ${((comprimido.length / byteArray.length) * 100).toFixed(2)}%\n` +
-          `🔹 CRC32: ${crc32(byteArray)}\n` +
-          `🧾 Vista comprimida: [${comprimido.slice(0, 200).join(', ')}...]`;
-      };
-
-      lector.onerror = function() {
-        output.textContent = "❌ Error al leer el archivo.";
-      };
-
-      lector.readAsArrayBuffer(archivo);
-    }
-
-    function hyperCompress(data) {
-      const blockSize = 512;
-      const compressed = [];
-
-      for (let i = 0; i < data.length; i += blockSize) {
-        const block = data.slice(i, i + blockSize);
-        const rep = detectRepetitions(block);
-        compressed.push(...rep);
-      }
-
-      return new Uint8Array(compressed);
-    }
-
-    function detectRepetitions(block) {
-      const result = [];
-      for (let i = 0; i < block.length;) {
-        let repeatCount = 1;
-        while (
-          i + repeatCount < block.length &&
-          block[i] === block[i + repeatCount] &&
-          repeatCount < 255
-        ) {
-          repeatCount++;
-        }
-        if (repeatCount > 3) {
-          result.push(0); // marcador de repetición
-          result.push(block[i]); // valor
-          result.push(repeatCount); // repeticiones
-          i += repeatCount;
-        } else {
-          result.push(block[i]);
-          i++;
-        }
-      }
-      return result;
-    }
-
-    function crc32(buf) {
-      let crc = 0xffffffff;
-      for (let i = 0; i < buf.length; i++) {
-        let byte = buf[i];
-        crc = crc ^ byte;
-        for (let j = 0; j < 8; j++) {
-          const mask = -(crc & 1);
-          crc = (crc >>> 1) ^ (0xedb88320 & mask);
-        }
-      }
-      return ((crc ^ 0xffffffff) >>> 0).toString(16).toUpperCase();
-    }
-  </script>
+  <script src="hyperstorage6d.js"></script>
 </body>
 </html>
