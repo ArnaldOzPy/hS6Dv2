@@ -1,49 +1,77 @@
 
-export function compressHuffman(data) {
-  const compressed = data.slice(0, data.length / 2); // Simulación
-  const rate = 100 * (1 - compressed.length / data.length);
-  return { compressed, rate };
+export function buildFrequencyMap(data) {
+  const freq = {};
+  for (let char of data) {
+    freq[char] = (freq[char] || 0) + 1;
+  }
+  return freq;
 }
 
-export function decompressHuffman(data) {
-  const restored = new Uint8Array(data.length * 2); // Simulación
-  restored.set(data);
-  return restored;
+export function buildHuffmanTree(freqMap) {
+  const nodes = Object.entries(freqMap).map(([char, freq]) => ({ char, freq }));
+  while (nodes.length > 1) {
+    nodes.sort((a, b) => a.freq - b.freq);
+    const left = nodes.shift();
+    const right = nodes.shift();
+    nodes.push({ left, right, freq: left.freq + right.freq });
+  }
+  return nodes[0];
 }
 
-document.getElementById('compressInput').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  const reader = new FileReader();
-  reader.onload = () => {
-    const original = new Uint8Array(reader.result);
-    const { compressed, rate } = compressHuffman(original);
-    document.getElementById('originalSize').textContent = (original.length / 1024).toFixed(2) + ' KB';
-    document.getElementById('compressedSize').textContent = (compressed.length / 1024).toFixed(2) + ' KB';
-    document.getElementById('compressionRate').textContent = rate.toFixed(2) + ' %';
-    const blob = new Blob([compressed]);
-    const url = URL.createObjectURL(blob);
-    const a = document.getElementById('downloadCompressed');
-    a.href = url;
-    a.download = file.name + '.h6d';
-    a.style.display = 'block';
-  };
-  reader.readAsArrayBuffer(file);
-});
+function buildCodes(node, prefix = "", map = {}) {
+  if (node.char) {
+    map[node.char] = prefix;
+  } else {
+    buildCodes(node.left, prefix + "0", map);
+    buildCodes(node.right, prefix + "1", map);
+  }
+  return map;
+}
 
-document.getElementById('decompressInput').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  const reader = new FileReader();
-  reader.onload = () => {
-    const compressed = new Uint8Array(reader.result);
-    const restored = decompressHuffman(compressed);
-    document.getElementById('compressedSizeIn').textContent = (compressed.length / 1024).toFixed(2) + ' KB';
-    document.getElementById('decompressedSize').textContent = (restored.length / 1024).toFixed(2) + ' KB';
-    const blob = new Blob([restored]);
-    const url = URL.createObjectURL(blob);
-    const a = document.getElementById('downloadOriginal');
-    a.href = url;
-    a.download = file.name.replace('.h6d', '');
-    a.style.display = 'block';
+export function compressHuffman(text) {
+  const freqMap = buildFrequencyMap(text);
+  const tree = buildHuffmanTree(freqMap);
+  const codes = buildCodes(tree);
+
+  let binaryStr = "";
+  for (let char of text) {
+    binaryStr += codes[char];
+  }
+
+  const padLength = (8 - binaryStr.length % 8) % 8;
+  binaryStr = binaryStr.padEnd(binaryStr.length + padLength, "0");
+
+  const byteArr = new Uint8Array((binaryStr.length + 7) >> 3);
+  for (let i = 0; i < byteArr.length; i++) {
+    byteArr[i] = parseInt(binaryStr.slice(i * 8, i * 8 + 8), 2);
+  }
+
+  return {
+    compressed: byteArr,
+    tree: JSON.stringify(freqMap),
+    padLength
   };
-  reader.readAsArrayBuffer(file);
-});
+}
+
+export function decompressHuffman(byteArr, freqMapStr, padLength) {
+  const freqMap = JSON.parse(freqMapStr);
+  const tree = buildHuffmanTree(freqMap);
+
+  let binaryStr = "";
+  for (let byte of byteArr) {
+    binaryStr += byte.toString(2).padStart(8, "0");
+  }
+  binaryStr = binaryStr.slice(0, binaryStr.length - padLength);
+
+  let output = "";
+  let node = tree;
+  for (let bit of binaryStr) {
+    node = bit === "0" ? node.left : node.right;
+    if (node.char) {
+      output += node.char;
+      node = tree;
+    }
+  }
+
+  return output;
+}
