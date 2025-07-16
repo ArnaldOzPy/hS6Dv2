@@ -1,43 +1,101 @@
+import { compressHS6D, decompressHS6D } from './hyper-huffman.js';
+import { transform6D, inverse6D } from './bwt-rle.js';
 
+const COMPRESS_WORKER = new Worker('./workers/compress-worker.js', { type: 'module' });
+const DECOMPRESS_WORKER = new Worker('./workers/decompress-worker.js', { type: 'module' });
 
-import { compressData, decompressData } from './compress-worker.js'; import { buildSuffixArray } from './suffix-array.js'; import { crc32 } from './crc32.js'; import { findRepeatedBlocks } from './block-match.js';
+COMPRESS_WORKER.onerror = (e) => {
+  console.error("Error en COMPRESS_WORKER:", e.message);
+  alert("Error al comprimir archivo. Revisa la consola.");
+};
 
-const fileInput = document.getElementById('fileInput'); const compressBtn = document.getElementById('compressBtn'); const decompressBtn = document.getElementById('decompressBtn'); const resultText = document.getElementById('resultText');
+DECOMPRESS_WORKER.onerror = (e) => {
+  console.error("Error en DECOMPRESS_WORKER:", e.message);
+  alert("Error al descomprimir archivo. Revisa la consola.");
+};
 
-compressBtn.addEventListener('click', async () => { const file = fileInput.files[0]; if (!file) return alert('Selecciona un archivo.'); const arrayBuffer = await file.arrayBuffer(); const uint8Data = new Uint8Array(arrayBuffer);
+document.getElementById('compressBtn').addEventListener('click', async () => {
+  const file = document.getElementById('fileInput').files[0];
+  if (!file) {
+    alert("Por favor, selecciona un archivo para comprimir.");
+    return;
+  }
 
-const compressed = await compressData(uint8Data); resultText.value = btoa(String.fromCharCode(...compressed)); });
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const buffer = e.target.result;
+    const data = new Uint8Array(buffer);
+    document.getElementById('compressProgress').style.width = '50%';
+    COMPRESS_WORKER.postMessage(data, [data.buffer]);
+  };
+  reader.readAsArrayBuffer(file);
+});
 
-decompressBtn.addEventListener('click', async () => { const base64 = resultText.value; const binary = atob(base64); const uint8Data = new Uint8Array(binary.length); for (let i = 0; i < binary.length; i++) uint8Data[i] = binary.charCodeAt(i);
+document.getElementById('decompressBtn').addEventListener('click', () => {
+  const file = document.getElementById('decompressInput').files[0];
+  if (!file) {
+    alert("Por favor, selecciona un archivo .hs6d para descomprimir.");
+    return;
+  }
 
-const decompressed = await decompressData(uint8Data); resultText.value = new TextDecoder().decode(decompressed); });
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const buffer = e.target.result;
+    const data = new Uint8Array(buffer);
+    document.getElementById('decompressProgress').style.width = '50%';
+    DECOMPRESS_WORKER.postMessage(data, [buffer]);
+  };
+  reader.readAsArrayBuffer(file);
+});
 
+COMPRESS_WORKER.onmessage = (e) => {
+  if (e.data.error) {
+    console.error("Error en compresión:", e.data.error);
+    alert("Ocurrió un error al comprimir.");
+    return;
+  }
 
+  const { compressed, originalSize, compressedSize } = e.data;
+  const blob = new Blob([compressed], { type: 'application/hs6d' });
+  const url = URL.createObjectURL(blob);
 
-import { bwtEncode, rleEncode, huffmanEncode } from './compressors.js'; import { findRepeatedBlocks } from './block-match.js'; import { crc32 } from './crc32.js';
+  document.getElementById('compressProgress').style.width = '100%';
+  document.getElementById('originalSize').textContent = formatSize(originalSize);
+  document.getElementById('compressedSize').textContent = formatSize(compressedSize);
+  document.getElementById('compressionRatio').textContent = `${(originalSize / compressedSize).toFixed(2)}:1`;
 
-export async function compressData(data) { const crc = crc32(data);
+  const link = document.getElementById('downloadCompressed');
+  link.href = url;
+  link.download = `compressed_${Date.now()}.hs6d`;
+  link.style.display = 'block';
+};
 
-const patternMap = findRepeatedBlocks(data, 512); const cleanedData = data.filter((_, i) => !patternMap.has(i));
+DECOMPRESS_WORKER.onmessage = (e) => {
+  if (e.data.error) {
+    console.error("Error en descompresión:", e.data.error);
+    alert("Ocurrió un error al descomprimir.");
+    return;
+  }
 
-const bwt = bwtEncode(cleanedData); const rle = rleEncode(bwt); const huffman = huffmanEncode(rle);
+  const { decompressed, compressedSize } = e.data;
+  const blob = new Blob([decompressed]);
+  const url = URL.createObjectURL(blob);
 
-const crcBytes = new Uint8Array(4); const dv = new DataView(crcBytes.buffer); dv.setUint32(0, crc);
+  document.getElementById('decompressProgress').style.width = '100%';
+  document.getElementById('inputCompressedSize').textContent = formatSize(compressedSize);
+  document.getElementById('decompressedSize').textContent = formatSize(decompressed.length);
 
-return new Uint8Array([...crcBytes, ...huffman]); }
+  const link = document.getElementById('downloadDecompressed');
+  link.href = url;
+  link.download = `original_${Date.now()}`;
+  link.style.display = 'block';
+};
 
-
-
-import { bwtDecode, rleDecode, huffmanDecode } from './compressors.js'; import { crc32 } from './crc32.js';
-
-export async function decompressData(data) { const storedCRC = new DataView(data.buffer).getUint32(0); const payload = data.slice(4);
-
-const huffman = huffmanDecode(payload); const rle = rleDecode(huffman); const bwt = bwtDecode(rle);
-
-const calcCRC = crc32(bwt); if (storedCRC !== calcCRC) throw new Error('CRC mismatch. Archivo corrupto.');
-
-return bwt; }
-
+function formatSize(bytes) {
+  if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(2)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+  return `${bytes} bytes`;
+}
 
 
 export function findRepeatedBlocks(data, blockSize = 512) { const seen = new Map(); const repeats = new Set();
