@@ -1,18 +1,31 @@
 import { compressHS6D, decompressHS6D } from './hyper-huffman.js';
 import { transform6D, inverse6D } from './bwt-rle.js';
 
-const COMPRESS_WORKER = new Worker('./workers/compress-worker.js');
-const DECOMPRESS_WORKER = new Worker('./workers/decompress-worker.js');
+const COMPRESS_WORKER = new Worker('./workers/compress-worker.js', { type: 'module' });
+const DECOMPRESS_WORKER = new Worker('./workers/decompress-worker.js', { type: 'module' });
+
+COMPRESS_WORKER.onerror = (e) => {
+  console.error("Error en COMPRESS_WORKER:", e.message);
+  alert("Error al comprimir archivo. Revisa la consola.");
+};
+
+DECOMPRESS_WORKER.onerror = (e) => {
+  console.error("Error en DECOMPRESS_WORKER:", e.message);
+  alert("Error al descomprimir archivo. Revisa la consola.");
+};
 
 document.getElementById('compressBtn').addEventListener('click', async () => {
   const file = document.getElementById('fileInput').files[0];
-  if (!file) return;
+  if (!file) {
+    alert("Por favor, selecciona un archivo para comprimir.");
+    return;
+  }
 
   const reader = new FileReader();
   reader.onload = async (e) => {
     const buffer = e.target.result;
     const data = new Uint8Array(buffer);
-    
+    document.getElementById('compressProgress').style.width = '50%';
     COMPRESS_WORKER.postMessage(data, [data.buffer]);
   };
   reader.readAsArrayBuffer(file);
@@ -20,26 +33,37 @@ document.getElementById('compressBtn').addEventListener('click', async () => {
 
 document.getElementById('decompressBtn').addEventListener('click', () => {
   const file = document.getElementById('decompressInput').files[0];
-  if (!file) return;
+  if (!file) {
+    alert("Por favor, selecciona un archivo .hs6d para descomprimir.");
+    return;
+  }
 
   const reader = new FileReader();
   reader.onload = (e) => {
     const buffer = e.target.result;
-    DECOMPRESS_WORKER.postMessage(new Uint8Array(buffer), [buffer]);
+    const data = new Uint8Array(buffer);
+    document.getElementById('decompressProgress').style.width = '50%';
+    DECOMPRESS_WORKER.postMessage(data, [buffer]);
   };
   reader.readAsArrayBuffer(file);
 });
 
 COMPRESS_WORKER.onmessage = (e) => {
+  if (e.data.error) {
+    console.error("Error en compresión:", e.data.error);
+    alert("Ocurrió un error al comprimir.");
+    return;
+  }
+
   const { compressed, originalSize, compressedSize } = e.data;
   const blob = new Blob([compressed], { type: 'application/hs6d' });
   const url = URL.createObjectURL(blob);
-  
+
+  document.getElementById('compressProgress').style.width = '100%';
   document.getElementById('originalSize').textContent = formatSize(originalSize);
   document.getElementById('compressedSize').textContent = formatSize(compressedSize);
-  document.getElementById('compressionRatio').textContent = 
-    `${(originalSize / compressedSize).toFixed(2)}:1`;
-  
+  document.getElementById('compressionRatio').textContent = `${(originalSize / compressedSize).toFixed(2)}:1`;
+
   const link = document.getElementById('downloadCompressed');
   link.href = url;
   link.download = `compressed_${Date.now()}.hs6d`;
@@ -47,13 +71,20 @@ COMPRESS_WORKER.onmessage = (e) => {
 };
 
 DECOMPRESS_WORKER.onmessage = (e) => {
+  if (e.data.error) {
+    console.error("Error en descompresión:", e.data.error);
+    alert("Ocurrió un error al descomprimir.");
+    return;
+  }
+
   const { decompressed, compressedSize } = e.data;
   const blob = new Blob([decompressed]);
   const url = URL.createObjectURL(blob);
-  
+
+  document.getElementById('decompressProgress').style.width = '100%';
   document.getElementById('inputCompressedSize').textContent = formatSize(compressedSize);
   document.getElementById('decompressedSize').textContent = formatSize(decompressed.length);
-  
+
   const link = document.getElementById('downloadDecompressed');
   link.href = url;
   link.download = `original_${Date.now()}`;
