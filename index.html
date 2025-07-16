@@ -1,150 +1,112 @@
-<!DOCTYPE html><html lang="es">
+<!DOCTYPE html>
+<html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>HyperStorage6D v2</title>
-  <link rel="stylesheet" href="style.css">
+  <title>Compresión HyperStorage6D</title>
   <style>
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background: #0f172a;
-      color: #e2e8f0;
-      margin: 0;
-      padding: 2rem;
-    }.container {
-  max-width: 800px;
-  margin: auto;
-  background: #1e293b;
-  padding: 2rem;
-  border-radius: 1rem;
-  box-shadow: 0 0 30px rgba(0, 255, 136, 0.2);
-}
-
-h1, h2 {
-  color: #00ff88;
-  margin-top: 0;
-}
-
-.section {
-  margin-bottom: 2rem;
-  padding: 1.5rem;
-  background: #334155;
-  border-radius: 0.5rem;
-}
-
-input[type="file"] {
-  width: 100%;
-  margin-bottom: 1rem;
-  background: #475569;
-  color: white;
-  padding: 0.5rem;
-  border-radius: 0.25rem;
-  border: 1px solid #64748b;
-}
-
-button {
-  background: #00ff88;
-  color: #0f172a;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  font-weight: bold;
-  border-radius: 0.25rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  width: 100%;
-}
-
-button:hover {
-  background: #00e676;
-  transform: translateY(-2px);
-}
-
-.progress {
-  margin: 1rem 0;
-  background: #1e293b;
-  border-radius: 0.25rem;
-  overflow: hidden;
-  height: 1rem;
-  position: relative;
-}
-
-.progress-bar {
-  height: 100%;
-  background: #00ff88;
-  width: 0%;
-  transition: width 0.3s;
-}
-
-.eta {
-  position: absolute;
-  top: -1.5rem;
-  right: 0;
-  font-size: 0.8rem;
-  color: #94a3b8;
-}
-
-.stats {
-  background: #1e293b;
-  padding: 1rem;
-  border-radius: 0.25rem;
-  margin-top: 1rem;
-}
-
-.download-link {
-  display: none;
-  background: #00ff88;
-  color: #0f172a;
-  text-align: center;
-  padding: 0.75rem;
-  border-radius: 0.25rem;
-  text-decoration: none;
-  font-weight: bold;
-  margin-top: 1rem;
-  display: block;
-}
-
-.download-link:hover {
-  background: #00e676;
-}
-
+    body { font-family: sans-serif; padding: 2rem; background: #f9f9f9; }
+    pre { background: #fff; padding: 1rem; border: 1px solid #ddd; max-height: 300px; overflow: auto; }
+    .block { margin-top: 2rem; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>HyperStorage6D v2</h1><div class="section">
-  <h2>🗜️ Comprimir Archivo</h2>
-  <input type="file" id="fileInput">
-  <button id="compressBtn">Comprimir</button>
-  <div class="progress">
-    <div class="progress-bar" id="compressProgress"></div>
-    <div class="eta" id="compressETA">ETA: --</div>
-  </div>
-  <div class="stats">
-    <div>Tamaño original: <span id="originalSize">-</span></div>
-    <div>Tamaño comprimido: <span id="compressedSize">-</span></div>
-    <div>Ratio: <span id="compressionRatio">-</span></div>
-  </div>
-  <a id="downloadCompressed" class="download-link">Descargar .hs6d</a>
-</div>
+  <h2>HyperStorage6D – Compresor Experimental</h2>
 
-<div class="section">
-  <h2>📂 Descomprimir Archivo</h2>
-  <input type="file" id="decompressInput" accept=".hs6d">
-  <button id="decompressBtn">Descomprimir</button>
-  <div class="progress">
-    <div class="progress-bar" id="decompressProgress"></div>
-    <div class="eta" id="decompressETA">ETA: --</div>
+  <div class="block">
+    <input type="file" id="fileInput">
+    <button onclick="procesarArchivo()">📦 Comprimir</button>
   </div>
-  <div class="stats">
-    <div>Tamaño comprimido: <span id="inputCompressedSize">-</span></div>
-    <div>Tamaño descomprimido: <span id="decompressedSize">-</span></div>
+
+  <div class="block">
+    <h3>📤 Resultado:</h3>
+    <pre id="output">Esperando archivo...</pre>
   </div>
-  <a id="downloadDecompressed" class="download-link">Descargar original</a>
-</div>
 
-  </div>  <script type="module" src="index-main.js"></script></body>
+  <script>
+    function procesarArchivo() {
+      const input = document.getElementById('fileInput');
+      const output = document.getElementById('output');
 
-<footer>
-    <p>Copyright © 2025 - HyperStorage6D <a href="https://informaticabigbosspy.blogspot.com/p/principal.html"><strong>BIG BOSS Informática || Servicios</strong></a>.<br>
-      Todos los derechos reservados.</p>
-  </footer>
+      if (!input.files || input.files.length === 0) {
+        output.textContent = "⚠️ No se seleccionó ningún archivo.";
+        return;
+      }
+
+      const archivo = input.files[0];
+      const lector = new FileReader();
+
+      lector.onload = function(e) {
+        const arrayBuffer = e.target.result;
+        const byteArray = new Uint8Array(arrayBuffer);
+
+        // Compresión
+        const comprimido = hyperCompress(byteArray);
+
+        output.textContent =
+          `✅ Archivo cargado: ${archivo.name}\n` +
+          `🔸 Tamaño original: ${byteArray.length} bytes\n` +
+          `🔸 Tamaño comprimido: ${comprimido.length} bytes\n` +
+          `🔸 Ratio: ${((comprimido.length / byteArray.length) * 100).toFixed(2)}%\n` +
+          `🔹 CRC32: ${crc32(byteArray)}\n` +
+          `🧾 Vista comprimida: [${comprimido.slice(0, 200).join(', ')}...]`;
+      };
+
+      lector.onerror = function() {
+        output.textContent = "❌ Error al leer el archivo.";
+      };
+
+      lector.readAsArrayBuffer(archivo);
+    }
+
+    function hyperCompress(data) {
+      const blockSize = 512;
+      const compressed = [];
+
+      for (let i = 0; i < data.length; i += blockSize) {
+        const block = data.slice(i, i + blockSize);
+        const rep = detectRepetitions(block);
+        compressed.push(...rep);
+      }
+
+      return new Uint8Array(compressed);
+    }
+
+    function detectRepetitions(block) {
+      const result = [];
+      for (let i = 0; i < block.length;) {
+        let repeatCount = 1;
+        while (
+          i + repeatCount < block.length &&
+          block[i] === block[i + repeatCount] &&
+          repeatCount < 255
+        ) {
+          repeatCount++;
+        }
+        if (repeatCount > 3) {
+          result.push(0); // marcador de repetición
+          result.push(block[i]); // valor
+          result.push(repeatCount); // repeticiones
+          i += repeatCount;
+        } else {
+          result.push(block[i]);
+          i++;
+        }
+      }
+      return result;
+    }
+
+    function crc32(buf) {
+      let crc = 0xffffffff;
+      for (let i = 0; i < buf.length; i++) {
+        let byte = buf[i];
+        crc = crc ^ byte;
+        for (let j = 0; j < 8; j++) {
+          const mask = -(crc & 1);
+          crc = (crc >>> 1) ^ (0xedb88320 & mask);
+        }
+      }
+      return ((crc ^ 0xffffffff) >>> 0).toString(16).toUpperCase();
+    }
+  </script>
+</body>
 </html>
