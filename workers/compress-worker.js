@@ -1,13 +1,13 @@
 import { transform6D } from '../bwt-rle.js';
 import { compressHS6D } from '../hyper-huffman.js';
 
-self.onmessage = async (e) => {
+self.onmessage = (e) => {
   const data = e.data;
-  
+
   try {
     const bwtCompressed = transform6D(data);
     const huffmanCompressed = compressHS6D(bwtCompressed);
-    
+
     self.postMessage({
       compressed: huffmanCompressed.compressed,
       originalSize: data.length,
