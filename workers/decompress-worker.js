@@ -13,6 +13,6 @@ self.onmessage = (e) => {
     }, [originalData.buffer]);
     
   } catch (error) {
-    self.postMessage({ error: error.message });
+    self.postMessage({ error: "Error en descompresión: " + error.message });
   }
 };
