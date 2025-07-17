@@ -1,15 +1,13 @@
 export function compressHS6D(data) {
   const frequencyMap = buildFrequencyMap(data);
-  const huffmanTree = buildHuffmanTree(frequencyMap);
-  const codes = buildCodeMap(huffmanTree);
+  const { codes, canonicalLengths } = buildCanonicalHuffman(frequencyMap);
+  const header = encodeCanonicalHeader(canonicalLengths);
   const encodedData = encodeData(data, codes);
-
-  const freqBuffer = new Uint32Array(frequencyMap);
-  const freqBytes = new Uint8Array(freqBuffer.buffer);
-  const combined = new Uint8Array(freqBytes.length + encodedData.length);
-  combined.set(freqBytes, 0);
-  combined.set(encodedData, freqBytes.length);
-
+  
+  const combined = new Uint8Array(header.length + encodedData.length);
+  combined.set(header);
+  combined.set(encodedData, header.length);
+  
   return {
     compressed: combined,
     originalSize: data.length,
@@ -18,14 +16,10 @@ export function compressHS6D(data) {
 }
 
 export function decompressHS6D(combinedData) {
-  const freqBytes = combinedData.slice(0, 1024);
-  const compressedBytes = combinedData.slice(1024);
-
-  const freqBuffer = new Uint32Array(freqBytes.buffer);
-  const frequencyMap = Array.from(freqBuffer);
-
-  const huffmanTree = buildHuffmanTree(frequencyMap);
-  return decodeData(compressedBytes, huffmanTree);
+  const { lengths, headerSize } = decodeCanonicalHeader(combinedData);
+  const codes = buildCodesFromLengths(lengths);
+  const compressedData = combinedData.slice(headerSize);
+  return decodeData(compressedData, codes);
 }
 
 function buildFrequencyMap(data) {
@@ -36,11 +30,12 @@ function buildFrequencyMap(data) {
   return freq;
 }
 
-function buildHuffmanTree(freqMap) {
+function buildCanonicalHuffman(freqMap) {
+  
   const nodes = freqMap
     .map((freq, byte) => ({ byte, freq }))
     .filter(node => node.freq > 0);
-
+  
   while (nodes.length > 1) {
     nodes.sort((a, b) => a.freq - b.freq);
     const left = nodes.shift();
@@ -52,55 +47,159 @@ function buildHuffmanTree(freqMap) {
       byte: null
     });
   }
-
-  return nodes[0];
+  
+  
+  const lengths = new Array(256).fill(0);
+  assignLengths(nodes[0], 0, lengths);
+  
+  
+  const symbols = [];
+  for (let byte = 0; byte < 256; byte++) {
+    if (lengths[byte] > 0) {
+      symbols.push({ byte, length: lengths[byte] });
+    }
+  }
+  
+  symbols.sort((a, b) => {
+    if (a.length !== b.length) return a.length - b.length;
+    return a.byte - b.byte;
+  });
+  
+  
+  let currentCode = 0;
+  const codes = {};
+  for (const { byte, length } of symbols) {
+    codes[byte] = currentCode.toString(2).padStart(length, '0');
+    currentCode = (currentCode + 1) << (symbols[0].length - length);
+  }
+  
+  return { codes, canonicalLengths: lengths };
 }
 
-function buildCodeMap(node, prefix = '', map = {}) {
+function assignLengths(node, depth, lengths) {
   if (node.byte !== null) {
-    map[node.byte] = prefix;
+    lengths[node.byte] = depth;
   } else {
-    buildCodeMap(node.left, prefix + '0', map);
-    buildCodeMap(node.right, prefix + '1', map);
+    assignLengths(node.left, depth + 1, lengths);
+    assignLengths(node.right, depth + 1, lengths);
   }
-  return map;
+}
+
+function encodeCanonicalHeader(lengths) {
+  
+  const header = [];
+  let current = lengths[0];
+  let count = 1;
+  
+  for (let i = 1; i < 256; i++) {
+    if (lengths[i] === current && count < 255) {
+      count++;
+    } else {
+      header.push(current, count);
+      current = lengths[i];
+      count = 1;
+    }
+  }
+  header.push(current, count);
+  
+  return new Uint8Array(header);
+}
+
+function decodeCanonicalHeader(headerData) {
+  const lengths = new Array(256).fill(0);
+  let index = 0;
+  let pos = 0;
+  
+  for (let i = 0; i < headerData.length; i += 2) {
+    if (pos >= 256) break;
+    
+    const lengthVal = headerData[i];
+    const count = headerData[i + 1];
+    
+    for (let j = 0; j < count && pos < 256; j++) {
+      lengths[pos++] = lengthVal;
+    }
+  }
+  
+  return { 
+    lengths, 
+    headerSize: Math.min(headerData.length, 512) 
+  };
+}
+
+function buildCodesFromLengths(lengths) {
+  const symbols = [];
+  for (let byte = 0; byte < 256; byte++) {
+    if (lengths[byte] > 0) {
+      symbols.push({ byte, length: lengths[byte] });
+    }
+  }
+  
+  symbols.sort((a, b) => {
+    if (a.length !== b.length) return a.length - b.length;
+    return a.byte - b.byte;
+  });
+  
+  let currentCode = 0;
+  const codes = {};
+  for (const { byte, length } of symbols) {
+    codes[byte] = currentCode.toString(2).padStart(length, '0');
+    currentCode = (currentCode + 1) << (symbols[0].length - length);
+  }
+  
+  return codes;
 }
 
 function encodeData(data, codes) {
-  let bitBuffer = '';
+  let bitBuffer = 0;
+  let bitCount = 0;
   const output = [];
-
+  
   for (const byte of data) {
-    bitBuffer += codes[byte];
-    while (bitBuffer.length >= 8) {
-      output.push(parseInt(bitBuffer.substring(0, 8), 2));
-      bitBuffer = bitBuffer.substring(8);
+    const code = codes[byte];
+    if (!code) continue;
+    
+    for (const bit of code) {
+      bitBuffer = (bitBuffer << 1) | (bit === '1' ? 1 : 0);
+      bitCount++;
+      
+      if (bitCount === 8) {
+        output.push(bitBuffer);
+        bitBuffer = 0;
+        bitCount = 0;
+      }
     }
   }
-
-  if (bitBuffer.length > 0) {
-    output.push(parseInt(bitBuffer.padEnd(8, '0'), 2));
+  
+  
+  if (bitCount > 0) {
+    bitBuffer <<= (8 - bitCount);
+    output.push(bitBuffer);
   }
-
+  
   return new Uint8Array(output);
 }
 
-function decodeData(encodedData, huffmanTree) {
-  let bitString = '';
-  for (const byte of encodedData) {
-    bitString += byte.toString(2).padStart(8, '0');
+function decodeData(encodedData, codes) {
+
+  const codeMap = {};
+  for (const [byte, code] of Object.entries(codes)) {
+    codeMap[code] = parseInt(byte);
   }
-
+  
+  let bitString = '';
   const output = [];
-  let currentNode = huffmanTree;
-
-  for (const bit of bitString) {
-    currentNode = bit === '0' ? currentNode.left : currentNode.right;
-    if (currentNode.byte !== null) {
-      output.push(currentNode.byte);
-      currentNode = huffmanTree;
+  
+  for (const byte of encodedData) {
+    const bits = byte.toString(2).padStart(8, '0');
+    for (const bit of bits) {
+      bitString += bit;
+      if (codeMap[bitString] !== undefined) {
+        output.push(codeMap[bitString]);
+        bitString = '';
+      }
     }
   }
-
+  
   return new Uint8Array(output);
 }
