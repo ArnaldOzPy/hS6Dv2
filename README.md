@@ -104,7 +104,7 @@
 
   <h2 style="color: #00ff88;">📄 Licencia</h2>
   <p>
-    Este proyecto está en proceso de registro y protección como parte de la arquitectura <strong>HyperStorage6D - Almacenamiento 1Bit-6D</strong>.<br>
+    Este proyecto está en proceso de registro y protección en WIPO y DINAPI como parte de la arquitectura <strong>HyperStorage6D - Almacenamiento 1Bit-6D</strong>.<br>
     El uso comercial sin autorización está prohibido y protegido por ley.
   </p>
 
