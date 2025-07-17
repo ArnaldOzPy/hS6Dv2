@@ -19,7 +19,7 @@ export function decompressHS6D(combinedData) {
   const { lengths, headerSize } = decodeCanonicalHeader(combinedData);
   const codes = buildCodesFromLengths(lengths);
   const compressedData = combinedData.slice(headerSize);
-  return decodeData(compressedData, codes);
+  return decodeData(compressedData, codes, lengths);
 }
 
 function buildFrequencyMap(data) {
@@ -31,7 +31,6 @@ function buildFrequencyMap(data) {
 }
 
 function buildCanonicalHuffman(freqMap) {
-  
   const nodes = freqMap
     .map((freq, byte) => ({ byte, freq }))
     .filter(node => node.freq > 0);
@@ -48,10 +47,8 @@ function buildCanonicalHuffman(freqMap) {
     });
   }
   
-  
   const lengths = new Array(256).fill(0);
-  assignLengths(nodes[0], 0, lengths);
-  
+  if (nodes.length > 0) assignLengths(nodes[0], 0, lengths);
   
   const symbols = [];
   for (let byte = 0; byte < 256; byte++) {
@@ -65,29 +62,36 @@ function buildCanonicalHuffman(freqMap) {
     return a.byte - b.byte;
   });
   
-  
+
   let currentCode = 0;
+  let currentLength = symbols[0]?.length || 0;
   const codes = {};
+  
   for (const { byte, length } of symbols) {
+    
+    while (currentLength < length) {
+      currentCode <<= 1;
+      currentLength++;
+    }
+    
     codes[byte] = currentCode.toString(2).padStart(length, '0');
-    currentCode = (currentCode + 1) << (symbols[0].length - length);
+    currentCode++;
   }
   
-  return { codes, canonicalLengths: lengths };
+  return { codes, lengths };
 }
 
 function assignLengths(node, depth, lengths) {
   if (node.byte !== null) {
     lengths[node.byte] = depth;
   } else {
-    assignLengths(node.left, depth + 1, lengths);
-    assignLengths(node.right, depth + 1, lengths);
+    if (node.left) assignLengths(node.left, depth + 1, lengths);
+    if (node.right) assignLengths(node.right, depth + 1, lengths);
   }
 }
 
 function encodeCanonicalHeader(lengths) {
   const header = [];
-  
   let current = lengths[0];
   let count = 1;
   
@@ -115,7 +119,7 @@ function decodeCanonicalHeader(headerData) {
     const count = headerData[i + 1];
     
     for (let j = 0; j < count; j++) {
-      lengths[pos++] = lengthVal;
+      if (pos < 256) lengths[pos++] = lengthVal;
     }
   }
   
@@ -138,11 +142,19 @@ function buildCodesFromLengths(lengths) {
     return a.byte - b.byte;
   });
   
+
   let currentCode = 0;
+  let currentLength = symbols[0]?.length || 0;
   const codes = {};
+  
   for (const { byte, length } of symbols) {
+    while (currentLength < length) {
+      currentCode <<= 1;
+      currentLength++;
+    }
+    
     codes[byte] = currentCode.toString(2).padStart(length, '0');
-    currentCode = (currentCode + 1) << (symbols[0].length - length);
+    currentCode++;
   }
   
   return codes;
@@ -162,39 +174,57 @@ function encodeData(data, codes) {
       bitCount++;
       
       if (bitCount === 8) {
-        output.push(bitBuffer);
+        output.push(bitBuffer >>> 0);
         bitBuffer = 0;
         bitCount = 0;
       }
     }
   }
   
-  
   if (bitCount > 0) {
     bitBuffer <<= (8 - bitCount);
-    output.push(bitBuffer);
+    output.push(bitBuffer >>> 0);
   }
   
   return new Uint8Array(output);
 }
 
-function decodeData(encodedData, codes) {
 
-  const codeMap = {};
-  for (const [byte, code] of Object.entries(codes)) {
-    codeMap[code] = parseInt(byte);
+function decodeData(encodedData, codes, lengths) {
+
+  const root = {};
+  for (const [byteStr, code] of Object.entries(codes)) {
+    const byte = parseInt(byteStr);
+    let node = root;
+    for (const bit of code) {
+      node = node[bit] = node[bit] || {};
+    }
+    node.byte = byte;
   }
   
-  let bitString = '';
+  let bitBuffer = 0;
+  let bitCount = 0;
+  let node = root;
   const output = [];
   
   for (const byte of encodedData) {
-    const bits = byte.toString(2).padStart(8, '0');
-    for (const bit of bits) {
-      bitString += bit;
-      if (codeMap[bitString] !== undefined) {
-        output.push(codeMap[bitString]);
-        bitString = '';
+    bitBuffer = (bitBuffer << 8) | byte;
+    bitCount += 8;
+    
+    while (bitCount > 0) {
+      const bit = (bitBuffer >>> (bitCount - 1)) & 1;
+      node = node[bit];
+      bitCount--;
+      
+      if (node.byte !== undefined) {
+        output.push(node.byte);
+        node = root;
+      }
+      
+      
+      if (!node) {
+        node = root;
+        bitCount--;
       }
     }
   }
