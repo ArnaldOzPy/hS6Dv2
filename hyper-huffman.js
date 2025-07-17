@@ -1,7 +1,7 @@
 export function compressHS6D(data) {
   const frequencyMap = buildFrequencyMap(data);
-  const { codes, canonicalLengths } = buildCanonicalHuffman(frequencyMap);
-  const header = encodeCanonicalHeader(canonicalLengths);
+  const { codes, lengths } = buildCanonicalHuffman(frequencyMap);
+  const header = encodeCanonicalHeader(lengths);
   const encodedData = encodeData(data, codes);
   
   const combined = new Uint8Array(header.length + encodedData.length);
@@ -86,8 +86,8 @@ function assignLengths(node, depth, lengths) {
 }
 
 function encodeCanonicalHeader(lengths) {
-  
   const header = [];
+  
   let current = lengths[0];
   let count = 1;
   
@@ -107,23 +107,21 @@ function encodeCanonicalHeader(lengths) {
 
 function decodeCanonicalHeader(headerData) {
   const lengths = new Array(256).fill(0);
-  let index = 0;
   let pos = 0;
   
   for (let i = 0; i < headerData.length; i += 2) {
     if (pos >= 256) break;
-    
     const lengthVal = headerData[i];
     const count = headerData[i + 1];
     
-    for (let j = 0; j < count && pos < 256; j++) {
+    for (let j = 0; j < count; j++) {
       lengths[pos++] = lengthVal;
     }
   }
   
   return { 
     lengths, 
-    headerSize: Math.min(headerData.length, 512) 
+    headerSize: headerData.length 
   };
 }
 
