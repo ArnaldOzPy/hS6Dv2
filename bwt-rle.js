@@ -1,109 +1,193 @@
+
 export function transform6D(data) {
-  const suffixArray = buildSuffixArray(data);
-  const bwt = applyBWT(data, suffixArray);
-  return encodeRLE(bwt);
+  const { bwt, originalIndex } = applyBWT(data);
+  const mtf = mtfEncode(bwt);
+  const rle = encodeRLE(mtf);
+  
+  const output = new Uint8Array(rle.length + 4);
+  const view = new DataView(output.buffer);
+  view.setUint32(0, originalIndex, true);
+  output.set(rle, 4);
+  return output;
 }
 
 export function inverse6D(encoded) {
-  const decodedRLE = decodeRLE(encoded);
-  return inverseBWT(decodedRLE);
+  const view = new DataView(encoded.buffer);
+  const originalIndex = view.getUint32(0, true);
+  const rleData = new Uint8Array(encoded.buffer.slice(4));
+  const decodedRLE = decodeRLE(rleData);
+  const imtf = mtfDecode(decodedRLE);
+  return inverseBWT(imtf, originalIndex);
 }
 
 function buildSuffixArray(data) {
   const n = data.length;
-  const suffixes = new Array(n);
-  const buckets = Array.from({ length: 256 }, () => []);
-
-  for (let i = 0; i < n; i++) {
-    buckets[data[i]].push(i);
-  }
-
-  let index = 0;
-  for (let b = 0; b < 256; b++) {
-    for (const pos of buckets[b]) {
-      suffixes[index++] = pos;
-    }
-  }
-
+  const suffixes = Array.from({ length: n }, (_, i) => i);
+  
   suffixes.sort((a, b) => {
-    for (let i = 0; a + i < n && b + i < n; i++) {
-      const diff = data[a + i] - data[b + i];
+    for (let i = 0; i < n; i++) {
+      const aIdx = (a + i) % n;
+      const bIdx = (b + i) % n;
+      const diff = data[aIdx] - data[bIdx];
       if (diff !== 0) return diff;
     }
-    return (n - a) - (n - b);
+    return 0;
   });
-
+  
   return suffixes;
 }
 
-function applyBWT(data, suffixArray) {
-  const output = new Uint8Array(data.length);
-  for (let i = 0; i < suffixArray.length; i++) {
-    output[i] = data[(suffixArray[i] === 0 ? data.length : suffixArray[i]) - 1];
+function applyBWT(data) {
+  const suffixArray = buildSuffixArray(data);
+  const n = data.length;
+  const bwt = new Uint8Array(n);
+  let originalIndex = -1;
+
+  for (let i = 0; i < n; i++) {
+    const pos = suffixArray[i];
+    if (pos === 0) {
+      originalIndex = i;
+      bwt[i] = data[n - 1];
+    } else {
+      bwt[i] = data[pos - 1];
+    }
   }
+  
+  return { bwt, originalIndex };
+}
+
+function mtfEncode(data) {
+  const alphabet = Array.from({ length: 256 }, (_, i) => i);
+  const output = new Uint8Array(data.length);
+  
+  for (let i = 0; i < data.length; i++) {
+    const byte = data[i];
+    const idx = alphabet.indexOf(byte);
+    output[i] = idx;
+    
+  
+    alphabet.splice(idx, 1);
+    alphabet.unshift(byte);
+  }
+  
+  return output;
+}
+
+function mtfDecode(data) {
+  const alphabet = Array.from({ length: 256 }, (_, i) => i);
+  const output = new Uint8Array(data.length);
+  
+  for (let i = 0; i < data.length; i++) {
+    const idx = data[i];
+    const byte = alphabet[idx];
+    output[i] = byte;
+    
+    
+    alphabet.splice(idx, 1);
+    alphabet.unshift(byte);
+  }
+  
   return output;
 }
 
 function encodeRLE(data) {
   const output = [];
-  let count = 1;
-
-  for (let i = 1; i <= data.length; i++) {
-    if (i < data.length && data[i] === data[i - 1]) {
-      count++;
+  let i = 0;
+  
+  while (i < data.length) {
+    let runLength = 1;
+    const current = data[i];
+    
+    while (i + runLength < data.length && 
+           data[i + runLength] === current && 
+           runLength < 128) {
+      runLength++;
+    }
+    
+    if (runLength > 1) {
+      output.push(current, runLength | 0x80);
+      i += runLength;
     } else {
-      output.push(data[i - 1]);
-      if (count > 1) output.push(count);
-      count = 1;
+      let literalLength = 1;
+      while (i + literalLength < data.length && 
+             literalLength < 128 && 
+             (i + literalLength >= data.length - 1 || 
+              data[i + literalLength] !== data[i + literalLength + 1])) {
+        literalLength++;
+      }
+      
+      output.push(0x80, literalLength);
+      for (let j = 0; j < literalLength; j++) {
+        output.push(data[i + j]);
+      }
+      i += literalLength;
     }
   }
-
+  
   return new Uint8Array(output);
 }
 
 function decodeRLE(encoded) {
   const output = [];
   let i = 0;
-
+  
   while (i < encoded.length) {
-    const value = encoded[i++];
-    const isCount = i < encoded.length && typeof encoded[i] === 'number';
-    const count = isCount ? encoded[i++] : 1;
-    for (let j = 0; j < count; j++) {
-      output.push(value);
+    const byte = encoded[i++];
+    
+    if (byte === 0x80 && i < encoded.length) {
+      const length = encoded[i++];
+      for (let j = 0; j < length; j++) {
+        if (i < encoded.length) {
+          output.push(encoded[i++]);
+        }
+      }
+    } else if (byte & 0x80) {
+      const runLength = byte & 0x7F;
+      const value = encoded[i++];
+      for (let j = 0; j < runLength; j++) {
+        output.push(value);
+      }
+    } else {
+      output.push(byte);
     }
   }
-
+  
   return new Uint8Array(output);
 }
 
-function inverseBWT(bwtData) {
+function inverseBWT(bwtData, originalIndex) {
   const n = bwtData.length;
-  const count = new Array(256).fill(0);
-  const pos = new Array(n);
-
+  const counts = new Array(256).fill(0);
+  const starts = new Array(256);
+  const links = new Array(n);
+  
+  
   for (let i = 0; i < n; i++) {
-    count[bwtData[i]]++;
+    counts[bwtData[i]]++;
   }
-
-  const totals = [...count];
-  for (let i = 1; i < 256; i++) {
-    totals[i] += totals[i - 1];
+  
+  
+  let total = 0;
+  for (let i = 0; i < 256; i++) {
+    starts[i] = total;
+    total += counts[i];
   }
-
-  const firstCol = new Array(n);
-  for (let i = n - 1; i >= 0; i--) {
-    const c = bwtData[i];
-    totals[c]--;
-    firstCol[totals[c]] = i;
+  
+  
+  const nextIndex = [...starts];
+  for (let i = 0; i < n; i++) {
+    const byte = bwtData[i];
+    links[nextIndex[byte]] = i;
+    nextIndex[byte]++;
   }
-
-  let result = new Uint8Array(n);
-  let idx = firstCol[0];
-  for (let i = n - 1; i >= 0; i--) {
-    result[i] = bwtData[idx];
-    idx = firstCol[idx];
+  
+  
+  const output = new Uint8Array(n);
+  let current = originalIndex;
+  for (let i = 0; i < n; i++) {
+    output[i] = bwtData[current];
+    current = links[current];
   }
-
-  return result;
+  
+  return output;
 }
