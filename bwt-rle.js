@@ -1,4 +1,3 @@
-
 export function transform6D(data) {
   const { bwt, originalIndex } = applyBWT(data);
   const mtf = mtfEncode(bwt);
@@ -93,65 +92,60 @@ function mtfDecode(data) {
 function encodeRLE(data) {
   const output = [];
   let i = 0;
-  
+
   while (i < data.length) {
+  
     let runLength = 1;
-    const current = data[i];
-    
     while (i + runLength < data.length && 
-           data[i + runLength] === current && 
-           runLength < 128) {
+           data[i + runLength] === data[i] && 
+           runLength < 16383) {
       runLength++;
     }
-    
-    if (runLength > 1) {
-      output.push(current, runLength | 0x80);
+
+    if (runLength >= 3) {
+      
+      output.push(0x80 | (runLength >>> 8), runLength & 0xFF, data[i]);
       i += runLength;
     } else {
-      let literalLength = 1;
-      while (i + literalLength < data.length && 
-             literalLength < 128 && 
-             (i + literalLength >= data.length - 1 || 
-              data[i + literalLength] !== data[i + literalLength + 1])) {
-        literalLength++;
-      }
       
-      output.push(0x80, literalLength);
+      let literalEnd = i + 1;
+      while (literalEnd < data.length && 
+             (literalEnd - i < 16383) && 
+             (data[literalEnd] !== data[literalEnd + 1] || 
+              data[literalEnd] !== data[literalEnd + 2])) {
+        literalEnd++;
+      }
+      const literalLength = literalEnd - i;
+      output.push(0x00, literalLength >>> 8, literalLength & 0xFF);
       for (let j = 0; j < literalLength; j++) {
         output.push(data[i + j]);
       }
       i += literalLength;
     }
   }
-  
   return new Uint8Array(output);
 }
 
 function decodeRLE(encoded) {
   const output = [];
   let i = 0;
-  
+
   while (i < encoded.length) {
-    const byte = encoded[i++];
+    const marker = encoded[i++];
     
-    if (byte === 0x80 && i < encoded.length) {
-      const length = encoded[i++];
-      for (let j = 0; j < length; j++) {
-        if (i < encoded.length) {
-          output.push(encoded[i++]);
-        }
-      }
-    } else if (byte & 0x80) {
-      const runLength = byte & 0x7F;
+    if (marker & 0x80) { 
+      const runLength = ((marker & 0x7F) << 8) | encoded[i++];
       const value = encoded[i++];
       for (let j = 0; j < runLength; j++) {
         output.push(value);
       }
-    } else {
-      output.push(byte);
+    } else { 
+      const literalLength = (encoded[i++] << 8) | encoded[i++];
+      for (let j = 0; j < literalLength; j++) {
+        output.push(encoded[i++]);
+      }
     }
   }
-  
   return new Uint8Array(output);
 }
 
