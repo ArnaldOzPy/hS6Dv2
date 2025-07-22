@@ -11,6 +11,10 @@ self.onmessage = async (e) => {
     
     try {
         const startTime = performance.now();
+        let progress = 0;
+        
+        // Reportar progreso inicial
+        self.postMessage({ type: 'progress', progress: 0.05, stage: 'Iniciando' });
         
         // 1. Verificar formato y extraer secciones
         if (compressedData.length < 20) {
@@ -27,6 +31,8 @@ self.onmessage = async (e) => {
         
         const originalSize = headerView.getUint32(4);
         const processingTime = headerView.getFloat64(8);
+        progress = 0.1;
+        self.postMessage({ type: 'progress', progress, stage: 'Verificando cabecera' });
         
         // 2. Verificar checksum
         const dataSection = compressedData.slice(16, compressedData.length - 4);
@@ -41,16 +47,23 @@ self.onmessage = async (e) => {
                 Calculado: ${calculatedChecksum.toString(16)}`);
         }
         
+        progress = 0.2;
+        self.postMessage({ type: 'progress', progress, stage: 'Checksum validado' });
+        
         // 3. Descomprimir con Huffman
+        self.postMessage({ type: 'progress', progress: 0.3, stage: 'Descomprimiendo Huffman' });
         const huffmanDecompressed = huffmanEncoder.decode(dataSection);
+        progress = 0.6;
         
         // 4. Determinar si se aplicó BWT
         let originalData;
         if (wasBWTApplied(huffmanDecompressed)) {
+            self.postMessage({ type: 'progress', progress: 0.7, stage: 'Revirtiendo BWT' });
             originalData = bwtProcessor.inverse(huffmanDecompressed);
         } else {
             originalData = huffmanDecompressed;
         }
+        progress = 0.9;
         
         // 5. Verificar tamaño final
         if (originalData.length !== originalSize) {
@@ -62,6 +75,8 @@ self.onmessage = async (e) => {
                 originalData = originalData.slice(0, originalSize);
             }
         }
+        
+        self.postMessage({ type: 'progress', progress: 1.0, stage: 'Finalizado' });
         
         self.postMessage({
             decompressed: originalData,
