@@ -1,6 +1,6 @@
 // workers/decompress-worker.js
-import { createBWTProcessor } from '../lib/bwt-engine.js';
-import { createHuffmanEncoder } from '../lib/huffman-engine.js';
+import { createBWTProcessor } from '../bwt-engine.js';
+import { createHuffmanEncoder } from '../huffman-engine.js';
 import { crc32 } from '../utils.js';
 
 const bwtProcessor = createBWTProcessor();
