@@ -1,173 +1,429 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
-  <title>HyperStorage6D v2</title>
-  <style>
-    /* RESET */
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #f4f0f0;
-      color: #333;
-      padding: 1rem;
-    }
-
-    .container {
-      max-width: 900px;
-      margin: auto;
-      padding: 1rem;
-    }
-
-    h1 {
-      text-align: center;
-      margin-bottom: 2rem;
-      font-size: 2rem;
-      color: #0d6efd;
-    }
-
-    .section {
-      background: white;
-      padding: 1.5rem;
-      margin-bottom: 2rem;
-      border-radius: 12px;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    }
-
-    .section h2 {
-      margin-bottom: 1rem;
-      font-size: 1.3rem;
-      color: #0a58ca;
-    }
-
-    input[type="file"] {
-      display: block;
-      margin-bottom: 1rem;
-      font-size: 1rem;
-    }
-
-    button {
-      padding: 0.6rem 1.2rem;
-      font-size: 1rem;
-      background-color: #0d6efd;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      margin-bottom: 1rem;
-    }
-
-    button:hover {
-      background-color: #0b5ed7;
-    }
-
-    .progress {
-      width: 100%;
-      background-color: #e9ecef;
-      border-radius: 6px;
-      overflow: hidden;
-      margin-bottom: 1rem;
-    }
-
-    .progress-bar {
-      height: 12px;
-      width: 0;
-      background-color: #198754;
-      transition: width 0.3s ease;
-    }
-
-    .stats {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
-    }
-
-    .download-link {
-      display: inline-block;
-      margin-top: 0.5rem;
-      color: #0d6efd;
-      text-decoration: none;
-      font-weight: bold;
-    }
-
-    .download-link:hover {
-      text-decoration: underline;
-    }
-
-    @media (max-width: 600px) {
-      h1 {
-        font-size: 1.5rem;
-      }
-
-      .section h2 {
-        font-size: 1.1rem;
-      }
-
-      button {
-        width: 100%;
-      }
-
-      .stats {
-        font-size: 0.95rem;
-      }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HyperStorage6D v2 - Compresor Avanzado</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #1a2a6c);
+            background-attachment: fixed;
+            color: #f0f0f0;
+            line-height: 1.6;
+            padding: 1rem;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 1.5rem;
+            background: rgba(0, 0, 30, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(100, 100, 255, 0.2);
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid rgba(100, 150, 255, 0.3);
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(to right, #4facfe, #00f2fe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        
+        .tagline {
+            font-size: 1.1rem;
+            color: #a0c8ff;
+            font-style: italic;
+            margin-bottom: 1rem;
+        }
+        
+        .section {
+            background: rgba(10, 15, 40, 0.7);
+            padding: 1.8rem;
+            margin-bottom: 2.5rem;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(80, 120, 200, 0.2);
+            transition: transform 0.3s ease;
+        }
+        
+        .section:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+        }
+        
+        .section h2 {
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+            color: #4facfe;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .section h2 i {
+            font-size: 1.8rem;
+        }
+        
+        input[type="file"] {
+            display: block;
+            width: 100%;
+            margin-bottom: 1.5rem;
+            padding: 0.8rem;
+            background: rgba(20, 30, 60, 0.6);
+            border: 1px solid rgba(100, 150, 255, 0.3);
+            border-radius: 8px;
+            color: #e0f0ff;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        input[type="file"]:hover {
+            border-color: #4facfe;
+            background: rgba(30, 50, 90, 0.7);
+        }
+        
+        button {
+            padding: 0.8rem 1.8rem;
+            font-size: 1.1rem;
+            background: linear-gradient(to right, #4facfe, #00f2fe);
+            color: #0a1930;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+        
+        button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        button:disabled {
+            background: linear-gradient(to right, #555, #777);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        /* Barra de progreso */
+        .progress-container {
+            margin-bottom: 1.5rem;
+            background: rgba(20, 30, 60, 0.6);
+            border-radius: 8px;
+            overflow: hidden;
+            height: 16px;
+            position: relative;
+            box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        .progress-bar {
+            height: 100%;
+            width: 0;
+            background: linear-gradient(to right, #4facfe, #00f2fe);
+            transition: width 0.5s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .progress-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                45deg,
+                rgba(255, 255, 255, 0) 30%,
+                rgba(255, 255, 255, 0.3) 50%,
+                rgba(255, 255, 255, 0) 70%
+            );
+            animation: shimmer 1.5s infinite;
+            background-size: 200% 100%;
+        }
+        
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        
+        .progress-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            background: rgba(15, 25, 50, 0.7);
+            padding: 1rem;
+            border-radius: 8px;
+        }
+        
+        .progress-item {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .progress-label {
+            font-size: 0.9rem;
+            color: #a0c8ff;
+            margin-bottom: 0.3rem;
+        }
+        
+        .progress-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #4facfe;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.2rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .stat {
+            background: rgba(20, 40, 80, 0.6);
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+        
+        .stat:hover {
+            transform: translateY(-5px);
+            background: rgba(30, 60, 120, 0.7);
+        }
+        
+        .stat-label {
+            font-size: 0.95rem;
+            color: #a0c8ff;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-value {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #00f2fe;
+        }
+        
+        .download-link {
+            display: inline-block;
+            margin-top: 1rem;
+            padding: 0.8rem 1.5rem;
+            background: linear-gradient(to right, #00c9ff, #92fe9d);
+            color: #0a1930;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-align: center;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+        
+        .download-link:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        footer {
+            text-align: center;
+            padding-top: 2rem;
+            margin-top: 2rem;
+            border-top: 1px solid rgba(100, 150, 255, 0.2);
+            color: #a0c8ff;
+            font-size: 0.9rem;
+        }
+        
+        .logo {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        .logo-inner {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #4facfe, #00f2fe);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #0a1930;
+            box-shadow: 0 0 20px rgba(79, 172, 254, 0.5);
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                padding: 1rem;
+                margin: 1rem;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .section {
+                padding: 1.2rem;
+            }
+            
+            button {
+                width: 100%;
+                padding: 1rem;
+            }
+            
+            .progress-info {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <h1> HyperStorage6D v2</h1>
-
-    <div class="section">
-      <h2>🗜️ Comprimir Archivo</h2>
-      <input type="file" id="fileInput">
-      <button id="compressBtn">Comprimir</button>
-
-      <div class="progress">
-        <div class="progress-bar" id="compressProgress"></div>
-      </div>
-
-      <div class="stats">
-        <div>Tamaño original: <span id="originalSize">-</span></div>
-        <div>Tamaño comprimido: <span id="compressedSize">-</span></div>
-        <div>Ratio: <span id="compressionRatio">-</span></div>
-      </div>
-
-      <a id="downloadCompressed" class="download-link">Descargar .hs6d</a>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="logo-inner">H6D</div>
+            </div>
+            <h1>HyperStorage6D v2</h1>
+            <p class="tagline">Compresión de última generación para cualquier tipo de archivo</p>
+        </header>
+        
+        <!-- Sección de Compresión -->
+        <div class="section">
+            <h2><i>🗜️</i> Comprimir Archivo</h2>
+            <input type="file" id="fileInput">
+            <button id="compressBtn">Comprimir Archivo</button>
+            
+            <div class="progress-container">
+                <div class="progress-bar" id="compressProgress"></div>
+            </div>
+            
+            <div class="progress-info">
+                <div class="progress-item">
+                    <span class="progress-label">Progreso</span>
+                    <span class="progress-value" id="compressPercentage">0%</span>
+                </div>
+                <div class="progress-item">
+                    <span class="progress-label">Tiempo transcurrido</span>
+                    <span class="progress-value" id="compressElapsed">0s</span>
+                </div>
+                <div class="progress-item">
+                    <span class="progress-label">Tiempo restante</span>
+                    <span class="progress-value" id="compressRemaining">Calculando...</span>
+                </div>
+                <div class="progress-item">
+                    <span class="progress-label">Velocidad</span>
+                    <span class="progress-value" id="compressSpeed">0 MB/s</span>
+                </div>
+            </div>
+            
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-label">Tamaño original</div>
+                    <div class="stat-value" id="originalSize">-</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Tamaño comprimido</div>
+                    <div class="stat-value" id="compressedSize">-</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Ratio de compresión</div>
+                    <div class="stat-value" id="compressionRatio">-</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Tiempo total</div>
+                    <div class="stat-value" id="compressTime">-</div>
+                </div>
+            </div>
+            
+            <a id="downloadCompressed" class="download-link">Descargar archivo comprimido (.hs6d)</a>
+        </div>
+        
+        <!-- Sección de Descompresión -->
+        <div class="section">
+            <h2><i>📂</i> Descomprimir Archivo</h2>
+            <input type="file" id="decompressInput" accept=".hs6d">
+            <button id="decompressBtn">Descomprimir Archivo</button>
+            
+            <div class="progress-container">
+                <div class="progress-bar" id="decompressProgress"></div>
+            </div>
+            
+            <div class="progress-info">
+                <div class="progress-item">
+                    <span class="progress-label">Progreso</span>
+                    <span class="progress-value" id="decompressPercentage">0%</span>
+                </div>
+                <div class="progress-item">
+                    <span class="progress-label">Tiempo transcurrido</span>
+                    <span class="progress-value" id="decompressElapsed">0s</span>
+                </div>
+                <div class="progress-item">
+                    <span class="progress-label">Tiempo restante</span>
+                    <span class="progress-value" id="decompressRemaining">Calculando...</span>
+                </div>
+                <div class="progress-item">
+                    <span class="progress-label">Velocidad</span>
+                    <span class="progress-value" id="decompressSpeed">0 MB/s</span>
+                </div>
+            </div>
+            
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-label">Tamaño comprimido</div>
+                    <div class="stat-value" id="inputCompressedSize">-</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Tamaño descomprimido</div>
+                    <div class="stat-value" id="decompressedSize">-</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Velocidad</div>
+                    <div class="stat-value" id="decompressRate">-</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Tiempo total</div>
+                    <div class="stat-value" id="decompressTime">-</div>
+                </div>
+            </div>
+            
+            <a id="downloadDecompressed" class="download-link">Descargar archivo original</a>
+        </div>
+        
+        <footer>
+            <p>Copyright © 2025 | HyperStorage6D V2 | Todos los Derechos reservados</p>
+            <p>BIG BOSS Informática || Servicios</p>
+        </footer>
     </div>
 
-    <div class="section">
-      <h2>📂 Descomprimir Archivo</h2>
-      <input type="file" id="decompressInput" accept=".hs6d">
-      <button id="decompressBtn">Descomprimir</button>
-
-      <div class="progress">
-        <div class="progress-bar" id="decompressProgress"></div>
-      </div>
-
-      <div class="stats">
-        <div>Tamaño comprimido: <span id="inputCompressedSize">-</span></div>
-        <div>Tamaño descomprimido: <span id="decompressedSize">-</span></div>
-      </div>
-
-      <a id="downloadDecompressed" class="download-link">Descargar original</a>
-    </div>
-  </div>
-
-  <script type="module" src="index.main.js"></script>
+    <script type="module" src="index.main.js"></script>
 </body>
-
-  <footer style="margin-top: 60px; text-align: center; font-size: 0.9em; color: #777;">
-
-   Copyright © 2025 | HyperStorage6D V2 | Todos los Derechos reservados
-  <a href="https://informaticabigbosspy.blogspot.com/p/principal.html"><strong>BIG BOSS Informática || Servicios</strong></a>
-
-  </footer>
-</html>
+  </html>
