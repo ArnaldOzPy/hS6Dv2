@@ -1,7 +1,6 @@
-// index.main.js
-import { compressHS6D, decompressHS6D } from './hyper-huffman.js';
-import { transform6D, inverse6D } from './bwt-rle.js';
 import { formatSize } from './utils.js';
+
+console.log("HyperStorage6D v2 iniciado");
 
 const COMPRESS_WORKER = new Worker('./workers/compress-worker.js', { type: 'module' });
 const DECOMPRESS_WORKER = new Worker('./workers/decompress-worker.js', { type: 'module' });
@@ -9,52 +8,73 @@ const DECOMPRESS_WORKER = new Worker('./workers/decompress-worker.js', { type: '
 // Variables para el seguimiento del progreso
 let compressStartTime, decompressStartTime;
 let compressInterval, decompressInterval;
+let compressFileSize = 0;
 
 COMPRESS_WORKER.onerror = (e) => {
     console.error("Error en COMPRESS_WORKER:", e.message);
-    alert("Error al comprimir archivo. Revisa la consola.");
+    showError("Error al comprimir archivo. Revisa la consola para más detalles.");
     stopProgressTracking('compress');
 };
 
 DECOMPRESS_WORKER.onerror = (e) => {
     console.error("Error en DECOMPRESS_WORKER:", e.message);
-    alert("Error al descomprimir archivo. Revisa la consola.");
+    showError("Error al descomprimir archivo. Revisa la consola para más detalles.");
     stopProgressTracking('decompress');
 };
 
 document.getElementById('compressBtn').addEventListener('click', async () => {
-    const file = document.getElementById('fileInput').files[0];
-    if (!file) {
-        alert("Por favor, selecciona un archivo para comprimir.");
+    const fileInput = document.getElementById('fileInput');
+    if (!fileInput.files || fileInput.files.length === 0) {
+        showError("Por favor, selecciona un archivo para comprimir.");
         return;
     }
+    
+    const file = fileInput.files[0];
+    console.log("Iniciando compresión de:", file.name);
     
     // Reiniciar estado
     resetProgress('compress');
     
     // Obtener tamaño del archivo
-    const fileSize = file.size;
-    document.getElementById('originalSize').textContent = formatSize(fileSize);
+    compressFileSize = file.size;
+    document.getElementById('originalSize').textContent = formatSize(compressFileSize);
     
     // Iniciar temporizador y seguimiento de progreso
     compressStartTime = Date.now();
-    startProgressTracking('compress', fileSize);
+    startProgressTracking('compress');
     
     const reader = new FileReader();
     reader.onload = async (e) => {
-        const buffer = e.target.result;
-        const data = new Uint8Array(buffer);
-        COMPRESS_WORKER.postMessage(data, [data.buffer]);
+        try {
+            const buffer = e.target.result;
+            const data = new Uint8Array(buffer);
+            COMPRESS_WORKER.postMessage(data, [data.buffer]);
+            console.log("Datos enviados al worker de compresión");
+        } catch (error) {
+            console.error("Error al procesar el archivo:", error);
+            showError("Error al procesar el archivo");
+            stopProgressTracking('compress');
+        }
     };
+    
+    reader.onerror = (error) => {
+        console.error("Error en FileReader:", error);
+        showError("Error al leer el archivo");
+        stopProgressTracking('compress');
+    };
+    
     reader.readAsArrayBuffer(file);
 });
 
 document.getElementById('decompressBtn').addEventListener('click', () => {
-    const file = document.getElementById('decompressInput').files[0];
-    if (!file) {
-        alert("Por favor, selecciona un archivo .hs6d para descomprimir.");
+    const fileInput = document.getElementById('decompressInput');
+    if (!fileInput.files || fileInput.files.length === 0) {
+        showError("Por favor, selecciona un archivo .hs6d para descomprimir.");
         return;
     }
+    
+    const file = fileInput.files[0];
+    console.log("Iniciando descompresión de:", file.name);
     
     // Reiniciar estado
     resetProgress('decompress');
@@ -69,28 +89,42 @@ document.getElementById('decompressBtn').addEventListener('click', () => {
     
     const reader = new FileReader();
     reader.onload = (e) => {
-        const buffer = e.target.result;
-        const data = new Uint8Array(buffer);
-        DECOMPRESS_WORKER.postMessage(data, [buffer]);
+        try {
+            const buffer = e.target.result;
+            const data = new Uint8Array(buffer);
+            DECOMPRESS_WORKER.postMessage(data, [data.buffer]);
+            console.log("Datos enviados al worker de descompresión");
+        } catch (error) {
+            console.error("Error al procesar el archivo:", error);
+            showError("Error al procesar el archivo");
+            stopProgressTracking('decompress');
+        }
     };
+    
+    reader.onerror = (error) => {
+        console.error("Error en FileReader:", error);
+        showError("Error al leer el archivo");
+        stopProgressTracking('decompress');
+    };
+    
     reader.readAsArrayBuffer(file);
 });
 
 COMPRESS_WORKER.onmessage = (e) => {
     if (e.data.error) {
         console.error("Error en compresión:", e.data.error);
-        alert("Ocurrió un error al comprimir.");
+        showError(`Error en compresión: ${e.data.error}`);
         stopProgressTracking('compress');
         return;
     }
     
     // Procesar eventos de progreso
     if (e.data.type === 'progress') {
-        const progress = e.data.progress;
-        updateProgress('compress', progress);
+        updateProgress('compress', e.data.progress * 100);
         return;
     }
 
+    console.log("Compresión completada recibida del worker");
     const { compressed, originalSize, compressedSize } = e.data;
     const blob = new Blob([compressed], { type: 'application/hs6d' });
     const url = URL.createObjectURL(blob);
@@ -111,18 +145,18 @@ COMPRESS_WORKER.onmessage = (e) => {
 DECOMPRESS_WORKER.onmessage = (e) => {
     if (e.data.error) {
         console.error("Error en descompresión:", e.data.error);
-        alert("Ocurrió un error al descomprimir.");
+        showError(`Error en descompresión: ${e.data.error}`);
         stopProgressTracking('decompress');
         return;
     }
     
     // Procesar eventos de progreso
     if (e.data.type === 'progress') {
-        const progress = e.data.progress;
-        updateProgress('decompress', progress);
+        updateProgress('decompress', e.data.progress * 100);
         return;
     }
     
+    console.log("Descompresión completada recibida del worker");
     const { decompressed, compressedSize, originalSize } = e.data;
     const blob = new Blob([decompressed]);
     const url = URL.createObjectURL(blob);
@@ -140,9 +174,9 @@ DECOMPRESS_WORKER.onmessage = (e) => {
 };
 
 // Funciones para manejar el progreso
-function startProgressTracking(type, totalSize) {
+function startProgressTracking(type) {
+    const prefix = type;
     const startTime = Date.now();
-    const prefix = type === 'compress' ? 'compress' : 'decompress';
     
     // Actualizar cada 100ms
     const interval = setInterval(() => {
@@ -153,12 +187,12 @@ function startProgressTracking(type, totalSize) {
         document.getElementById(`${prefix}Elapsed`).textContent = `${elapsed.toFixed(1)}s`;
         
         // Calcular tiempo restante si hay progreso
-        if (percentage > 0) {
+        if (percentage > 0 && type === 'compress' && compressFileSize > 0) {
             const remaining = (100 - percentage) * (elapsed / percentage);
             document.getElementById(`${prefix}Remaining`).textContent = `${remaining.toFixed(1)}s`;
             
             // Calcular velocidad (MB/s)
-            const processedSize = (totalSize * percentage) / 100;
+            const processedSize = (compressFileSize * percentage) / 100;
             const speed = (processedSize / (1024 * 1024)) / elapsed;
             document.getElementById(`${prefix}Speed`).textContent = `${speed.toFixed(2)} MB/s`;
         }
@@ -172,8 +206,9 @@ function startProgressTracking(type, totalSize) {
 }
 
 function stopProgressTracking(type) {
-    const prefix = type === 'compress' ? 'compress' : 'decompress';
-    const elapsed = (Date.now() - (type === 'compress' ? compressStartTime : decompressStartTime)) / 1000;
+    const prefix = type;
+    const startTime = type === 'compress' ? compressStartTime : decompressStartTime;
+    const elapsed = (Date.now() - startTime) / 1000;
     
     // Actualizar tiempo total
     document.getElementById(`${prefix}Time`).textContent = `${elapsed.toFixed(2)}s`;
@@ -181,13 +216,15 @@ function stopProgressTracking(type) {
     // Detener el intervalo
     if (type === 'compress' && compressInterval) {
         clearInterval(compressInterval);
+        compressInterval = null;
     } else if (decompressInterval) {
         clearInterval(decompressInterval);
+        decompressInterval = null;
     }
 }
 
 function resetProgress(type) {
-    const prefix = type === 'compress' ? 'compress' : 'decompress';
+    const prefix = type;
     
     // Resetear barras y valores
     document.getElementById(`${prefix}Progress`).style.width = '0%';
@@ -196,51 +233,55 @@ function resetProgress(type) {
     document.getElementById(`${prefix}Remaining`).textContent = 'Calculando...';
     document.getElementById(`${prefix}Speed`).textContent = '0 MB/s';
     
-    // Ocultar enlaces de descarga
+    // Resetear estadísticas
     if (type === 'compress') {
+        document.getElementById('compressedSize').textContent = '-';
+        document.getElementById('compressionRatio').textContent = '-';
         document.getElementById('downloadCompressed').style.display = 'none';
     } else {
+        document.getElementById('decompressedSize').textContent = '-';
         document.getElementById('downloadDecompressed').style.display = 'none';
     }
 }
 
 function updateProgress(type, progress) {
-    const prefix = type === 'compress' ? 'compress' : 'decompress';
-    const percentage = Math.round(progress * 100);
+    const prefix = type;
+    const percentage = Math.min(100, Math.max(0, progress));
     
     // Actualizar barra de progreso y porcentaje
     document.getElementById(`${prefix}Progress`).style.width = `${percentage}%`;
-    document.getElementById(`${prefix}Percentage`).textContent = `${percentage}%`;
+    document.getElementById(`${prefix}Percentage`).textContent = `${Math.round(percentage)}%`;
 }
 
-// Funciones utilitarias (si no están en utils.js)
-export function findRepeatedBlocks(data, blockSize = 512) { 
-    const seen = new Map(); 
-    const repeats = new Set();
+function showError(message) {
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'error-message';
+    errorDiv.textContent = message;
+    errorDiv.style.position = 'fixed';
+    errorDiv.style.top = '20px';
+    errorDiv.style.right = '20px';
+    errorDiv.style.padding = '15px';
+    errorDiv.style.backgroundColor = '#ff3860';
+    errorDiv.style.color = 'white';
+    errorDiv.style.borderRadius = '5px';
+    errorDiv.style.zIndex = '1000';
+    errorDiv.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
+    
+    document.body.appendChild(errorDiv);
+    
+    setTimeout(() => {
+        document.body.removeChild(errorDiv);
+    }, 5000);
+}
 
-    for (let i = 0; i < data.length - blockSize; i += blockSize) { 
-        const block = data.slice(i, i + blockSize); 
-        const key = block.join(',');
-
-        if (seen.has(key)) {
-            repeats.add(i);
-        } else {
-            seen.set(key, i);
-        }
+// Si no tienes utils.js, define formatSize aquí
+if (typeof formatSize === 'undefined') {
+    function formatSize(bytes) {
+        if (bytes >= 1073741824) return `${(bytes / 1073741824).toFixed(2)} GB`;
+        if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(2)} MB`;
+        if (bytes >= 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+        return `${bytes} bytes`;
     }
-
-    return repeats; 
 }
 
-export function crc32(buf) {
-    const table = new Uint32Array(256).map((_, n) => {
-        for (let k = 0; k < 8; k++) n = n & 1 ? 0xEDB88320 ^ (n >>> 1) : n >>> 1;
-        return n >>> 0;
-    });
-
-    let crc = 0 ^ (-1);
-    for (let i = 0; i < buf.length; i++) { 
-        crc = (crc >>> 8) ^ table[(crc ^ buf[i]) & 0xFF]; 
-    } 
-    return (crc ^ (-1)) >>> 0; 
-}
+console.log("index.main.js completamente cargado");
