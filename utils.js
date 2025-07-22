@@ -1,4 +1,3 @@
-// Implementación optimizada de CRC32
 export function crc32(buf) {
     const table = new Uint32Array(256);
     for (let n = 0; n < 256; n++) {
@@ -16,17 +15,9 @@ export function crc32(buf) {
     return (crc ^ (-1)) >>> 0;
 }
 
-// Función para calcular entropía
-export function calculateEntropy(data) {
-    const freq = new Array(256).fill(0);
-    for (const byte of data) freq[byte]++;
-    
-    let entropy = 0;
-    for (const count of freq) {
-        if (count > 0) {
-            const p = count / data.length;
-            entropy -= p * Math.log2(p);
-        }
-    }
-    return entropy;
+export function formatSize(bytes) {
+    if (bytes >= 1073741824) return `${(bytes / 1073741824).toFixed(2)} GB`;
+    if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(2)} MB`;
+    if (bytes >= 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+    return `${bytes} bytes`;
 }
