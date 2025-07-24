@@ -59,7 +59,7 @@ self.onmessage = async (e) => {
       const bwtData = bwtProcessor.process(data);
 
       reportProgress(0.5, 'Aplicando Huffman');
-      // Simular progreso con pausas (opcional)
+      // Simular progreso con pausas
       for (let i = 1; i <= 5; i++) {
         await new Promise(r => setTimeout(r, 40));
         reportProgress(0.5 + i * 0.05, 'Comprimiendo...');
@@ -70,12 +70,22 @@ self.onmessage = async (e) => {
 
     reportProgress(0.85, 'Empaquetando archivo');
 
-    // Header: 16 bytes
+    // CABECERA CORREGIDA (16 bytes)
     const header = new Uint8Array(16);
     const view = new DataView(header.buffer);
+    
+    // Magic number (4 bytes)
     view.setUint32(0, 0x48533644); // 'HS6D'
+    
+    // Tamaño original (4 bytes)
     view.setUint32(4, data.length);
-    view.setFloat64(8, performance.now() - startTime);
+    
+    // Flags (1 byte) - Bit 0: BWT aplicado
+    view.setUint8(8, binary ? 0 : 1);
+    
+    // Tiempo de procesamiento (7 bytes - float64 truncado)
+    const processingTime = performance.now() - startTime;
+    view.setFloat64(9, processingTime);  // Posición 9-16
 
     const checksum = crc32(compressedData);
 
@@ -91,7 +101,7 @@ self.onmessage = async (e) => {
       compressed: finalOutput,
       originalSize: data.length,
       compressedSize: finalOutput.length,
-      processingTime: performance.now() - startTime
+      processingTime
     }, [finalOutput.buffer]);
 
   } catch (error) {
