@@ -80,14 +80,6 @@
 
   <hr style="border-color: #334155; margin: 2rem 0;">
 
-  <h2 style="color: #00ff88;">🚀 Próximas mejoras</h2>
-  <ul>
-    <li>📐 Visualización del Árbol de Huffman en tiempo real</li>
-    <li>🔄 Capa 2 predictiva adaptativa mejorada</li>
-    <li>🧪 Comparativa en vivo contra ZIP, BZ2, GZIP</li>
-    <li>💽 Módulo exportable para Python / Rust / C++</li>
-    <li>🔏 Validación técnica para aplicación en sistemas operativos</li>
-  </ul>
 
   <hr style="border-color: #334155; margin: 2rem 0;">
 
