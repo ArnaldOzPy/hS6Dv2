@@ -83,9 +83,10 @@ self.onmessage = async (e) => {
     // Flags (1 byte) - Bit 0: BWT aplicado
     view.setUint8(8, binary ? 0 : 1);
     
-    // Tiempo de procesamiento (7 bytes - float64 truncado)
-    const processingTime = performance.now() - startTime;
-    view.setFloat64(9, processingTime);  // Posición 9-16
+    // Tiempo de procesamiento (4 bytes como entero de milisegundos)
+    const processingTime = Math.round(performance.now() - startTime);
+    view.setUint32(9, processingTime);  // Posición 9-12 (4 bytes)
+    // Bytes 13-15 reservados (0 por defecto)
 
     const checksum = crc32(compressedData);
 
@@ -93,7 +94,10 @@ self.onmessage = async (e) => {
     const finalOutput = new Uint8Array(header.length + compressedData.length + 4);
     finalOutput.set(header);
     finalOutput.set(compressedData, header.length);
-    new DataView(finalOutput.buffer).setUint32(finalOutput.length - 4, checksum);
+    
+    // Escribir checksum al final
+    const checksumView = new DataView(finalOutput.buffer);
+    checksumView.setUint32(finalOutput.length - 4, checksum);
 
     reportProgress(1.0, 'Finalizado');
 
