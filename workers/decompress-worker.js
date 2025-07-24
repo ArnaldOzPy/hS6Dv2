@@ -1,3 +1,51 @@
+// decompress-worker.js
+import { CompressionPipeline } from '../engines/compression-core.js';
+import { createBWTProcessor } from '../engines/bwt-engine.js';
+import { createHuffmanEncoder } from '../engines/huffman-engine.js';
+import { createLZ77Processor } from '../engines/lz77-engine.js';
+import { createZstdEncoder } from '../engines/zstd-engine.js';
+import { processInChunks } from '../utils/chunk-processor.js';
+import { crc32 } from '../utils.js';
+
+// Inicializar pipeline modular
+const pipeline = new CompressionPipeline();
+pipeline.registerTransformer('bwt', createBWTProcessor());
+pipeline.registerTransformer('lz77', createLZ77Processor());
+pipeline.registerEntropyEncoder('huffman', createHuffmanEncoder());
+pipeline.registerEntropyEncoder('zstd', createZstdEncoder());
+
+self.onmessage = async (e) => {
+  const compressedData = new Uint8Array(e.data);
+  const startTime = performance.now();
+
+  try {
+    // Leer configuración de la cabecera
+    const headerView = new DataView(compressedData.buffer, 0, 16);
+    const config = {
+      transformers: [],
+      entropyEncoder: headerView.getUint8(12) === 1 ? 'zstd' : 'huffman'
+    };
+
+    // Determinar transformadores usados
+    const flags = headerView.getUint8(8);
+    if (flags & 0x01) config.transformers.push('bwt');
+    if (flags & 0x02) config.transformers.push('lz77');
+
+    // ... (resto del código para extraer datos)
+
+    // Descomprimir en chunks si es necesario
+    const decompressedData = compressedData.length > 10 * 1024 * 1024
+      ? await processInChunks(dataSection, chunk => 
+          pipeline.inverse(chunk, config), 
+          2 * 1024 * 1024
+        )
+      : await pipeline.inverse(dataSection, config);
+
+    // ... (resto del código)
+    
+  
+
+
 import { createBWTProcessor } from '../bwt-engine.js';
 import { createHuffmanEncoder } from '../huffman-engine.js';
 import { crc32 } from '../utils.js';
@@ -95,6 +143,10 @@ self.onmessage = async (e) => {
       processingTime: performance.now() - startTime
     }, [originalData.buffer]);
 
+
+
+
+    
   } catch (error) {
     self.postMessage({
       error: `Error en descompresión: ${error.message}`,
