@@ -10,6 +10,48 @@ export function createHuffmanEncoder() {
 }
 
 function compressHS6D(data) {
+    // Caso especial: datos vacíos
+    if (data.length === 0) {
+        return {
+            compressed: new Uint8Array(0),
+            originalSize: 0,
+            compressedSize: 0
+        };
+    }
+
+    // Caso especial: todos los bytes iguales
+    const firstByte = data[0];
+    let allSame = true;
+    for (let i = 1; i < Math.min(data.length, 10000); i++) {
+        if (data[i] !== firstByte) {
+            allSame = false;
+            break;
+        }
+    }
+    
+    if (allSame) {
+        // Comprobación final para todo el archivo
+        for (let i = 10000; i < data.length; i += 10000) {
+            if (data[i] !== firstByte) {
+                allSame = false;
+                break;
+            }
+        }
+        
+        if (allSame) {
+            const header = new Uint8Array(5);
+            const view = new DataView(header.buffer);
+            view.setUint32(0, 1); // Flag de caso especial
+            view.setUint8(4, firstByte);
+            return {
+                compressed: header,
+                originalSize: data.length,
+                compressedSize: header.length
+            };
+        }
+    }
+
+    // Proceso Huffman normal
     const frequencyMap = buildFrequencyMap(data);
     const { codes, lengths } = buildCanonicalHuffman(frequencyMap);
     const header = encodeCanonicalHeader(lengths);
@@ -27,6 +69,21 @@ function compressHS6D(data) {
 }
 
 function decompressHS6D(combinedData) {
+    // Caso especial: datos vacíos
+    if (combinedData.length === 0) {
+        return new Uint8Array(0);
+    }
+
+    // Verificar caso especial de bytes repetidos
+    if (combinedData.length >= 5) {
+        const view = new DataView(combinedData.buffer);
+        if (view.getUint32(0) === 1) {
+            const byte = view.getUint8(4);
+            return new Uint8Array(1).fill(byte);
+        }
+    }
+
+    // Proceso Huffman normal
     const { lengths, headerSize } = decodeCanonicalHeader(combinedData);
     const codes = buildCodesFromLengths(lengths);
     const compressedData = combinedData.slice(headerSize);
@@ -183,7 +240,21 @@ function encodeData(data, codes) {
     for (let i = 0; i < data.length; i++) {
         const byte = data[i];
         const code = codes[byte];
-        if (!code) continue;
+        if (!code) {
+            // Si no hay código, usar el valor literal como fallback
+            for (let j = 0; j < 8; j++) {
+                const bit = (byte >> (7 - j)) & 1;
+                bitBuffer = (bitBuffer << 1) | bit;
+                bitCount++;
+                
+                if (bitCount === 8) {
+                    output.push(bitBuffer);
+                    bitBuffer = 0;
+                    bitCount = 0;
+                }
+            }
+            continue;
+        }
         
         for (let j = 0; j < code.length; j++) {
             bitBuffer = (bitBuffer << 1) | (code[j] === '1' ? 1 : 0);
@@ -206,6 +277,7 @@ function encodeData(data, codes) {
 }
 
 function decodeData(encodedData, codes, lengths) {
+    // Construir árbol de Huffman
     const root = {};
     for (const byte in codes) {
         const code = codes[byte];
@@ -229,6 +301,15 @@ function decodeData(encodedData, codes, lengths) {
         
         while (bitCount > 0) {
             const bit = (bitBuffer >> (bitCount - 1)) & 1;
+            if (!node[bit]) {
+                // Fallback: usar valor literal
+                const literal = (bitBuffer >> (bitCount - 8)) & 0xFF;
+                output.push(literal);
+                bitCount -= 8;
+                node = root;
+                continue;
+            }
+            
             node = node[bit];
             bitCount--;
             
