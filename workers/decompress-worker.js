@@ -93,6 +93,9 @@ self.onmessage = async (e) => {
       reportProgress(0.7, 'Revirtiendo BWT');
       try {
         originalData = bwtProcessor.inverse(huffmanDecompressed);
+        
+        // Liberar memoria de datos intermedios
+        huffmanDecompressed = null;
       } catch (bwtError) {
         // Fallback para archivos binarios
         console.warn("Error en BWT inverso, intentando sin transformación:", bwtError.message);
