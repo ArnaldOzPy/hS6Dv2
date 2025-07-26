@@ -140,6 +140,11 @@ self.onmessage = async (e) => {
 
     reportProgress(1.0, 'Finalizado');
 
+    // Liberar memoria de datos intermedios
+    if (bwtData && bwtData !== data) {
+        bwtData = null; // Ayuda al recolector de basura
+    }
+
     self.postMessage({
       compressed: finalOutput,
       originalSize: data.length,
