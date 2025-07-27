@@ -1,17 +1,6 @@
 const MAX_CHUNK_SIZE = 5242880; // 5MB
 
-export function createHuffmanEncoder() {
-    return {
-        encode: function(data) {
-            return compressHS6D(data).compressed;
-        },
-        decode: function(data) {
-            return decompressHS6D(data);
-        }
-    };
-}
-
-function compressHS6D(data) {
+export function compressHS6D(data) {
     // Caso especial: datos vacíos
     if (data.length === 0) {
         return {
@@ -73,7 +62,7 @@ function compressHS6D(data) {
     };
 }
 
-function decompressHS6D(combinedData) {
+export function decompressHS6D(combinedData) {
     // Caso especial: datos vacíos
     if (combinedData.length === 0) {
         return new Uint8Array(0);
