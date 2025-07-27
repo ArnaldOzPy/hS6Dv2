@@ -92,7 +92,36 @@ function decompressHS6D(combinedData) {
     const { lengths, headerSize } = decodeCanonicalHeader(combinedData);
     const codes = buildCodesFromLengths(lengths);
     const compressedData = combinedData.slice(headerSize);
-    return decodeData(compressedData, codes, lengths);
+    
+    // Descompresión por chunks para archivos grandes
+    if (compressedData.length > MAX_CHUNK_SIZE) {
+        const chunks = [];
+        const chunkCount = Math.ceil(compressedData.length / MAX_CHUNK_SIZE);
+        
+        for (let i = 0; i < chunkCount; i++) {
+            const start = i * MAX_CHUNK_SIZE;
+            const end = Math.min(start + MAX_CHUNK_SIZE, compressedData.length);
+            const chunk = compressedData.subarray(start, end);
+            chunks.push(decodeData(chunk, codes, lengths));
+        }
+        
+        return concatenateUint8Arrays(chunks);
+    } else {
+        return decodeData(compressedData, codes, lengths);
+    }
+}
+
+function concatenateUint8Arrays(arrays) {
+    const totalLength = arrays.reduce((sum, arr) => sum + arr.length, 0);
+    const result = new Uint8Array(totalLength);
+    let offset = 0;
+    
+    for (const arr of arrays) {
+        result.set(arr, offset);
+        offset += arr.length;
+    }
+    
+    return result;
 }
 
 function isAllSame(data) {
