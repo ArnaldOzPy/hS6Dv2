@@ -191,38 +191,43 @@ function decodeRLE(encoded) {
 }
 
 function inverseBWT(bwtData, originalIndex) {
-    const n = bwtData.length;
-    const counts = new Array(ALPHABET_SIZE).fill(0);
-    const starts = new Array(ALPHABET_SIZE);
-    const links = new Array(n);
-    
-    // Contar frecuencia de símbolos
-    for (let i = 0; i < n; i++) {
-        counts[bwtData[i]]++;
+    try {
+        const n = bwtData.length;
+        const counts = new Array(ALPHABET_SIZE).fill(0);
+        const starts = new Array(ALPHABET_SIZE);
+        const links = new Array(n);
+        
+        // Contar frecuencia de símbolos
+        for (let i = 0; i < n; i++) {
+            counts[bwtData[i]]++;
+        }
+        
+        // Calcular posiciones iniciales
+        let total = 0;
+        for (let i = 0; i < ALPHABET_SIZE; i++) {
+            starts[i] = total;
+            total += counts[i];
+        }
+        
+        // Construir enlaces
+        const nextIndex = [...starts];
+        for (let i = 0; i < n; i++) {
+            const byte = bwtData[i];
+            links[nextIndex[byte]] = i;
+            nextIndex[byte]++;
+        }
+        
+        // Reconstruir datos originales
+        const output = new Uint8Array(n);
+        let current = originalIndex;
+        for (let i = 0; i < n; i++) {
+            output[i] = bwtData[current];
+            current = links[current];
+        }
+        
+        return output;
+    } catch (error) {
+        console.error("Error en inverseBWT:", error);
+        throw new Error("Fallo en inversión BWT: " + error.message);
     }
-    
-    // Calcular posiciones iniciales
-    let total = 0;
-    for (let i = 0; i < ALPHABET_SIZE; i++) {
-        starts[i] = total;
-        total += counts[i];
-    }
-    
-    // Construir enlaces
-    const nextIndex = [...starts];
-    for (let i = 0; i < n; i++) {
-        const byte = bwtData[i];
-        links[nextIndex[byte]] = i;
-        nextIndex[byte]++;
-    }
-    
-    // Reconstruir datos originales
-    const output = new Uint8Array(n);
-    let current = originalIndex;
-    for (let i = 0; i < n; i++) {
-        output[i] = bwtData[current];
-        current = links[current];
-    }
-    
-    return output;
 }
