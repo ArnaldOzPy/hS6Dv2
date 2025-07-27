@@ -1,3 +1,5 @@
+const MAX_CHUNK_SIZE = 5242880; // 5MB
+
 export function createHuffmanEncoder() {
     return {
         encode: function(data) {
@@ -20,46 +22,49 @@ function compressHS6D(data) {
     }
 
     // Caso especial: todos los bytes iguales
-    const firstByte = data[0];
-    let allSame = true;
-    for (let i = 1; i < Math.min(data.length, 10000); i++) {
-        if (data[i] !== firstByte) {
-            allSame = false;
-            break;
-        }
-    }
-    
-    if (allSame) {
-        // Comprobación final para todo el archivo
-        for (let i = 10000; i < data.length; i += 10000) {
-            if (data[i] !== firstByte) {
-                allSame = false;
-                break;
-            }
-        }
-        
-        if (allSame) {
-            const header = new Uint8Array(5);
-            const view = new DataView(header.buffer);
-            view.setUint32(0, 1); // Flag de caso especial
-            view.setUint8(4, firstByte);
-            return {
-                compressed: header,
-                originalSize: data.length,
-                compressedSize: header.length
-            };
-        }
+    if (isAllSame(data)) {
+        const header = new Uint8Array(5);
+        const view = new DataView(header.buffer);
+        view.setUint32(0, 1); // Flag de caso especial
+        view.setUint8(4, data[0]);
+        return {
+            compressed: header,
+            originalSize: data.length,
+            compressedSize: header.length
+        };
     }
 
-    // Proceso Huffman normal
+    // Construir mapa de frecuencia global con muestreo
     const frequencyMap = buildFrequencyMap(data);
     const { codes, lengths } = buildCanonicalHuffman(frequencyMap);
     const header = encodeCanonicalHeader(lengths);
-    const encodedData = encodeData(data, codes);
+
+    // Comprimir en chunks
+    const chunks = [];
+    const chunkCount = Math.ceil(data.length / MAX_CHUNK_SIZE);
     
-    const combined = new Uint8Array(header.length + encodedData.length);
+    for (let i = 0; i < chunkCount; i++) {
+        const start = i * MAX_CHUNK_SIZE;
+        const end = Math.min(start + MAX_CHUNK_SIZE, data.length);
+        const chunk = data.subarray(start, end);
+        chunks.push(encodeData(chunk, codes));
+    }
+
+    // Calcular tamaño total
+    let totalSize = header.length;
+    for (const chunk of chunks) {
+        totalSize += chunk.length;
+    }
+
+    // Combinar todos los chunks
+    const combined = new Uint8Array(totalSize);
     combined.set(header);
-    combined.set(encodedData, header.length);
+    let offset = header.length;
+    
+    for (const chunk of chunks) {
+        combined.set(chunk, offset);
+        offset += chunk.length;
+    }
     
     return {
         compressed: combined,
@@ -90,9 +95,27 @@ function decompressHS6D(combinedData) {
     return decodeData(compressedData, codes, lengths);
 }
 
+function isAllSame(data) {
+    if (data.length === 0) return true;
+    
+    const firstByte = data[0];
+    const CHECK_POINTS = 1000;
+    const step = Math.max(1, Math.floor(data.length / CHECK_POINTS));
+    
+    for (let i = step; i < data.length; i += step) {
+        if (data[i] !== firstByte) {
+            return false;
+        }
+    }
+    return true;
+}
+
 function buildFrequencyMap(data) {
-    const freq = new Array(256).fill(0);
-    for (let i = 0; i < data.length; i++) {
+    const freq = new Uint32Array(256);
+    const sampleSize = Math.min(data.length, 1000000);
+    const step = Math.max(1, Math.floor(data.length / sampleSize));
+    
+    for (let i = 0; i < data.length; i += step) {
         freq[data[i]]++;
     }
     return freq;
