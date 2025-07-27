@@ -26,7 +26,7 @@ self.onmessage = async (e) => {
     
     // Validar magic number primero
     const magic = headerView.getUint32(0);
-    if (magic !== 0x48533644) {
+    if (magic !== 0x48533644) { // 'HS6D' en hex
       throw new Error("Formato de archivo inválido (magic number incorrecto)");
     }
 
@@ -34,12 +34,17 @@ self.onmessage = async (e) => {
     const originalSize = headerView.getUint32(4);
     const flags = headerView.getUint8(8);
     const usedBWT = (flags & 0x01) === 1;
-    const isSpecialCase = (flags & 0x02) === 2;  // Bytes repetidos
-    const isUncompressed = (flags & 0x04) === 4;  // Sin compresión
+    const isSpecialCase = (flags & 0x02) === 2;
+    const isUncompressed = (flags & 0x04) === 4;
     
     // Validar tamaño original razonable (5GB)
     if (originalSize > 1024 * 1024 * 1024 * 5) {
       throw new Error("Tamaño original inválido (máximo 5GB)");
+    }
+
+    // Validación adicional de flags
+    if (isSpecialCase && isUncompressed) {
+      throw new Error("Flags conflictivos en cabecera");
     }
 
     reportProgress(0.15, 'Cabecera validada');
@@ -60,20 +65,10 @@ self.onmessage = async (e) => {
     const calculatedChecksum = crc32(dataSection);
 
     if (storedChecksum !== calculatedChecksum) {
-      // Crear mensaje de error más informativo
-      const errorDetails = {
-        stored: storedChecksum.toString(16).padStart(8, '0'),
-        calculated: calculatedChecksum.toString(16).padStart(8, '0'),
-        position: checksumOffset,
-        dataLength: dataSection.length
-      };
-      
       throw new Error(
         `Checksum no coincide. Archivo corrupto.\n` +
-        `Esperado: 0x${errorDetails.stored}\n` +
-        `Calculado: 0x${errorDetails.calculated}\n` +
-        `Posición: ${errorDetails.position}\n` +
-        `Longitud datos: ${errorDetails.dataLength}`
+        `Esperado: 0x${storedChecksum.toString(16).padStart(8, '0')}\n` +
+        `Calculado: 0x${calculatedChecksum.toString(16).padStart(8, '0')}`
       );
     }
 
@@ -92,20 +87,30 @@ self.onmessage = async (e) => {
       try {
         huffmanDecompressed = huffmanEncoder.decode(dataSection);
       } catch (error) {
+        console.error("Error en decodificación Huffman:", error, "Datos:", dataSection.slice(0, 50));
         throw new Error(`Error en decodificación Huffman: ${error.message}`);
       }
 
-      // 7. Manejo de BWT mejorado - ¡AQUÍ ESTÁ EL CAMBIO IMPORTANTE!
+      // 7. Manejo de BWT mejorado
       if (usedBWT) {
         reportProgress(0.7, 'Revirtiendo BWT');
         try {
-          // Usar el nuevo procesador BWT corregido
           originalData = bwtProcessor.inverse(huffmanDecompressed);
         } catch (bwtError) {
-          // Manejar específicamente el caso de bloques pequeños
-          if (bwtError.message.includes("bloque pequeño")) {
-            console.warn("Recuperando bloque pequeño:", bwtError.message);
-            originalData = handleSmallBlockFallback(huffmanDecompressed);
+          console.error("Error en BWT inverso:", bwtError, "Datos:", huffmanDecompressed.slice(0, 50));
+          
+          // Manejar específicamente errores de índice
+          if (bwtError.message.includes("índice")) {
+            // Intentar recuperar usando el primer índice válido
+            try {
+              console.warn("Intentando recuperación con índice alternativo");
+              const altData = bwtProcessor.inverse(new Uint8Array([0, 0, 0, 0, ...huffmanDecompressed]));
+              if (altData.length > 0) {
+                originalData = altData;
+              }
+            } catch (recoveryError) {
+              throw new Error(`Error en BWT inverso: ${bwtError.message}`);
+            }
           } 
           // Manejar casos especiales de bytes repetidos
           else if (isSpecialCase) {
@@ -130,22 +135,29 @@ self.onmessage = async (e) => {
 
     // 9. Validación de tamaño mejorada
     if (!originalData || originalData.length === 0) {
+      console.error("Datos descomprimidos vacíos", {
+        header: { originalSize, flags },
+        dataSection: dataSection.slice(0, 50),
+        huffmanDecompressed: huffmanDecompressed?.slice(0, 50)
+      });
       throw new Error("Datos descomprimidos están vacíos");
     }
 
     if (originalData.length !== originalSize) {
-      const sizeInfo = `Original: ${originalSize} bytes | Descomprimido: ${originalData.length} bytes`;
+      console.warn(`Tamaño descomprimido diferente: ${originalData.length} vs ${originalSize}`);
       
-      // Manejar casos especiales de bytes repetidos
-      if (isSpecialCase && originalData.length === 1 && originalSize > 1) {
-        originalData = new Uint8Array(originalSize).fill(originalData[0]);
-      }
-      // Recortar solo si es mayor
-      else if (originalData.length > originalSize) {
-        console.warn(`Recortando datos (${sizeInfo})`);
+      // Ajustar tamaño si es mayor
+      if (originalData.length > originalSize) {
         originalData = originalData.slice(0, originalSize);
-      } else {
-        throw new Error(`Tamaño insuficiente tras descompresión (${sizeInfo})`);
+      }
+      // Rellenar si es menor (solo para casos especiales)
+      else if (isSpecialCase && originalData.length === 1) {
+        const filled = new Uint8Array(originalSize);
+        filled.fill(originalData[0]);
+        originalData = filled;
+      }
+      else {
+        throw new Error(`Tamaño incorrecto: ${originalData.length} ≠ ${originalSize}`);
       }
     }
 
@@ -161,29 +173,14 @@ self.onmessage = async (e) => {
     }, [originalData.buffer]);
 
   } catch (error) {
-    // Error detallado con información de depuración
-    const errorInfo = {
-      message: error.message,
-      stack: error.stack,
-      inputSize: compressedData.length
-    };
-    
+    console.error("Error crítico en descompresión:", error, "Input:", compressedData.slice(0, 100));
     self.postMessage({
-      error: `Error en descompresión: ${errorInfo.message}`,
-      details: errorInfo
+      error: `Error en descompresión: ${error.message}`,
+      details: {
+        message: error.message,
+        stack: error.stack,
+        inputSize: compressedData.length
+      }
     });
   }
 };
-
-// Función auxiliar para manejar bloques pequeños (nuevo)
-function handleSmallBlockFallback(data) {
-  try {
-    // Intentar procesar como bloque pequeño con el nuevo formato
-    return bwtProcessor.inverse(data);
-  } catch (fallbackError) {
-    console.error("Fallback para bloque pequeño falló:", fallbackError);
-    
-    // Último recurso: devolver los datos directamente
-    return data;
-  }
-}
