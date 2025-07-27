@@ -21,6 +21,15 @@ function isBinaryData(data) {
     [0x1A, 0x45, 0xDF, 0xA3]   // MKV
   ];
 
+  // Detección para archivos MP3
+  if (data.length > 3) {
+    // Cabecera ID3 (MP3 con metadatos)
+    if (data[0] === 0x49 && data[1] === 0x44 && data[2] === 0x33) return true;
+    
+    // Cabecera MPEG (sin ID3)
+    if (data[0] === 0xFF && (data[1] & 0xE0) === 0xE0) return true;
+  }
+
   for (const header of headers) {
     if (data.length >= header.length && header.every((b, i) => data[i] === b)) {
       return true;
@@ -38,13 +47,16 @@ function isBinaryData(data) {
     }
   }
 
-  // Archivos con entropía > 7.9 son altamente aleatorios (no comprimibles)
-  return entropy > 7.5 || data.length > 100000 && entropy > 7.0;
+  // Archivos con entropía alta son considerados binarios
+  return entropy > 7.5 || (data.length > 100000 && entropy > 7.0);
 }
 
 self.onmessage = async (e) => {
   const data = new Uint8Array(e.data);
   const startTime = performance.now();
+
+  // Declarar bwtData en un ámbito superior e inicializar como null
+  let bwtData = null;
 
   try {
     let compressedData;
@@ -79,10 +91,10 @@ self.onmessage = async (e) => {
     } else {
       reportProgress(0.3, 'Aplicando BWT');
       useBWT = true;
-      const bwtData = bwtProcessor.process(data);
+      bwtData = bwtProcessor.process(data);
 
       reportProgress(0.5, 'Aplicando Huffman');
-      // Simular progreso con pausas
+      // Simular progreso con pausas solo para no-binarios
       for (let i = 1; i <= 5; i++) {
         await new Promise(r => setTimeout(r, 40));
         reportProgress(0.5 + i * 0.05, 'Comprimiendo...');
@@ -112,9 +124,6 @@ self.onmessage = async (e) => {
     view.setUint32(4, data.length);
     
     // Flags (1 byte)
-    // Bit 0: BWT aplicado
-    // Bit 1: Caso especial (bytes repetidos)
-    // Bit 2: Datos sin comprimir (fallback)
     let flags = 0;
     if (useBWT) flags |= 1 << 0;        // Bit 0: BWT
     if (isSpecialCase) flags |= 1 << 1; // Bit 1: Caso especial
@@ -124,7 +133,7 @@ self.onmessage = async (e) => {
     
     // Tiempo de procesamiento (4 bytes como entero de milisegundos)
     const processingTime = Math.round(performance.now() - startTime);
-    view.setUint32(9, processingTime);  // Posición 9-12 (4 bytes)
+    view.setUint32(9, processingTime);
     // Bytes 13-15 reservados (0 por defecto)
 
     const checksum = crc32(compressedData);
@@ -139,6 +148,11 @@ self.onmessage = async (e) => {
     checksumView.setUint32(finalOutput.length - 4, checksum);
 
     reportProgress(1.0, 'Finalizado');
+
+    // Liberar memoria solo si bwtData fue utilizado
+    if (bwtData !== null) {
+      bwtData = null;
+    }
 
     self.postMessage({
       compressed: finalOutput,
