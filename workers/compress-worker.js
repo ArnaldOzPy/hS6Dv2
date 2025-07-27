@@ -4,6 +4,7 @@ import { crc32 } from '../utils.js';
 
 const bwtProcessor = createBWTProcessor();
 const huffmanEncoder = createHuffmanEncoder();
+const CHUNK_SIZE = 5242880; // 5MB
 
 // Reportar progreso (0.0 a 1.0)
 function reportProgress(progress, stage) {
@@ -12,55 +13,67 @@ function reportProgress(progress, stage) {
 
 // Detección heurística de binario mejorada
 function isBinaryData(data) {
+  // Detección mejorada para archivos pequeños
+  if (data.length < 16) return false;
+
   const headers = [
     [0xFF, 0xD8, 0xFF],        // JPEG
     [0x89, 0x50, 0x4E, 0x47],  // PNG
     [0x25, 0x50, 0x44, 0x46],  // PDF
     [0x47, 0x49, 0x46, 0x38],  // GIF
     [0x52, 0x49, 0x46, 0x46],  // WAV/AVI
-    [0x1A, 0x45, 0xDF, 0xA3]   // MKV
+    [0x1A, 0x45, 0xDF, 0xA3],  // MKV
+    [0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70], // MP4 con tamaño
+    [0x66, 0x74, 0x79, 0x70], // MP4 sin tamaño
+    [0x49, 0x44, 0x33]         // MP3 ID3
   ];
 
-  // Detección para archivos MP4
-  if (data.length > 12) {
-    // Cabecera MP4 (ftyp)
-    if (
-      (data[4] === 0x66 && data[5] === 0x74 && data[6] === 0x79 && data[7] === 0x70) || // ftyp
-      (data[0] === 0x00 && data[1] === 0x00 && data[2] === 0x00 && data[3] === 0x18 && data[4] === 0x66 && data[5] === 0x74 && data[6] === 0x79 && data[7] === 0x70) // ftyp con tamaño
-    ) {
-      return true;
-    }
-  }
-
+  // Verificar cabeceras conocidas
   for (const header of headers) {
     if (data.length >= header.length && header.every((b, i) => data[i] === b)) {
       return true;
     }
   }
 
-  // Calcular entropía
-  let entropy = 0;
+  // Cálculo de entropía optimizado para todos los tamaños
   const freq = new Array(256).fill(0);
-  
-  // Muestrear para archivos grandes (optimización)
   const sampleSize = Math.min(data.length, 1000000);
   const step = Math.max(1, Math.floor(data.length / sampleSize));
+  let totalSamples = 0;
   
   for (let i = 0; i < data.length; i += step) {
     freq[data[i]]++;
+    totalSamples++;
   }
-  
+
+  let entropy = 0;
   let nonZero = 0;
+  
   for (const count of freq) {
     if (count > 0) {
       nonZero++;
-      const p = count / sampleSize;
+      const p = count / totalSamples;
       entropy -= p * Math.log2(p);
     }
   }
 
-  // Archivos con alta entropía (>7.5) o muchos valores únicos
+  // Archivos con alta entropía o muchos valores únicos
   return entropy > 7.3 || nonZero > 240;
+}
+
+function isAllSame(data) {
+  if (data.length === 0) return true;
+  
+  const firstByte = data[0];
+  const CHECK_POINTS = 1000;
+  const step = Math.max(1, Math.floor(data.length / CHECK_POINTS));
+  
+  for (let i = step; i < data.length; i += step) {
+    if (data[i] !== firstByte) {
+      return false;
+    }
+  }
+  return true;
 }
 
 self.onmessage = async (e) => {
@@ -79,34 +92,20 @@ self.onmessage = async (e) => {
     let compressedData;
     let useBWT = false;
     let isSpecialCase = false;
+    let isUncompressed = false;
 
     reportProgress(0.05, 'Iniciando análisis');
 
     const binary = isBinaryData(data);
 
     // Segmentación para archivos grandes (>50MB)
-    const CHUNK_SIZE = 5242880; // 5MB
     let huffmanChunks = [];
 
     if (binary) {
       reportProgress(0.2, 'Procesando binario');
       
       // Verificar si es un caso especial (todos los bytes iguales)
-      const firstByte = data[0];
-      let allSame = true;
-      
-      // Optimización: verificar solo muestras
-      const CHECK_POINTS = 1000;
-      const step = Math.floor(data.length / CHECK_POINTS);
-      
-      for (let i = step; i < data.length; i += step) {
-        if (data[i] !== firstByte) {
-          allSame = false;
-          break;
-        }
-      }
-      
-      if (allSame) {
+      if (isAllSame(data)) {
         reportProgress(0.3, 'Caso especial: bytes repetidos');
         isSpecialCase = true;
         compressedData = huffmanEncoder.encode(data);
@@ -118,15 +117,19 @@ self.onmessage = async (e) => {
           const totalChunks = Math.ceil(data.length / CHUNK_SIZE);
           
           for (let i = 0; i < totalChunks; i++) {
-            const start = i * CHUNK_SIZE;
-            const end = Math.min(start + CHUNK_SIZE, data.length);
-            const chunk = data.slice(start, end);
-            
-            huffmanChunks.push(huffmanEncoder.encode(chunk));
-            
-            // Reportar progreso
-            const progress = 0.3 + (i / totalChunks) * 0.5;
-            reportProgress(progress, `Comprimiendo chunk ${i+1}/${totalChunks}`);
+            try {
+              const start = i * CHUNK_SIZE;
+              const end = Math.min(start + CHUNK_SIZE, data.length);
+              const chunk = data.subarray(start, end);
+              
+              huffmanChunks.push(huffmanEncoder.encode(chunk));
+              
+              const progress = 0.3 + (i / totalChunks) * 0.5;
+              reportProgress(progress, `Comprimiendo chunk ${i+1}/${totalChunks}`);
+            } catch (chunkError) {
+              console.error(`Error en chunk ${i}:`, chunkError);
+              throw new Error(`Fallo en compresión de chunk ${i+1}/${totalChunks}`);
+            }
           }
           
           // Calcular tamaño total
@@ -140,42 +143,52 @@ self.onmessage = async (e) => {
             offset += chunk.length;
           }
         } else {
-          // Compresión directa para archivos medianos
-          compressedData = huffmanEncoder.encode(data);
+          try {
+            compressedData = huffmanEncoder.encode(data);
+          } catch (error) {
+            console.error("Error en compresión Huffman:", error);
+            throw new Error("Fallo en compresión Huffman");
+          }
         }
       }
     } else {
       reportProgress(0.3, 'Aplicando BWT');
       useBWT = true;
       
-      // Aplicar BWT en chunks para archivos grandes
-      if (data.length > 10485760) { // >10MB
-        const totalChunks = Math.ceil(data.length / CHUNK_SIZE);
-        let bwtChunks = [];
-        
-        for (let i = 0; i < totalChunks; i++) {
-          const start = i * CHUNK_SIZE;
-          const end = Math.min(start + CHUNK_SIZE, data.length);
-          const chunk = data.slice(start, end);
+      // Añadir manejo de errores en BWT
+      try {
+        // Aplicar BWT en chunks para archivos grandes
+        if (data.length > 10485760) { // >10MB
+          const totalChunks = Math.ceil(data.length / CHUNK_SIZE);
+          let bwtChunks = [];
           
-          bwtChunks.push(bwtProcessor.process(chunk));
+          for (let i = 0; i < totalChunks; i++) {
+            const start = i * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, data.length);
+            const chunk = data.subarray(start, end);
+            
+            bwtChunks.push(bwtProcessor.process(chunk));
+            
+            // Reportar progreso
+            const progress = 0.3 + (i / totalChunks) * 0.2;
+            reportProgress(progress, `Procesando BWT chunk ${i+1}/${totalChunks}`);
+          }
           
-          // Reportar progreso
-          const progress = 0.3 + (i / totalChunks) * 0.2;
-          reportProgress(progress, `Procesando BWT chunk ${i+1}/${totalChunks}`);
+          // Combinar chunks BWT
+          const totalSize = bwtChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+          bwtData = new Uint8Array(totalSize);
+          let offset = 0;
+          
+          for (const chunk of bwtChunks) {
+            bwtData.set(chunk, offset);
+            offset += chunk.length;
+          }
+        } else {
+          bwtData = bwtProcessor.process(data);
         }
-        
-        // Combinar chunks BWT
-        const totalSize = bwtChunks.reduce((sum, chunk) => sum + chunk.length, 0);
-        bwtData = new Uint8Array(totalSize);
-        let offset = 0;
-        
-        for (const chunk of bwtChunks) {
-          bwtData.set(chunk, offset);
-          offset += chunk.length;
-        }
-      } else {
-        bwtData = bwtProcessor.process(data);
+      } catch (bwtError) {
+        console.error("Error en BWT:", bwtError);
+        throw new Error("Fallo en transformación BWT");
       }
 
       reportProgress(0.5, 'Aplicando Huffman');
@@ -185,15 +198,20 @@ self.onmessage = async (e) => {
         const totalChunks = Math.ceil(bwtData.length / CHUNK_SIZE);
         
         for (let i = 0; i < totalChunks; i++) {
-          const start = i * CHUNK_SIZE;
-          const end = Math.min(start + CHUNK_SIZE, bwtData.length);
-          const chunk = bwtData.slice(start, end);
-          
-          huffmanChunks.push(huffmanEncoder.encode(chunk));
-          
-          // Reportar progreso
-          const progress = 0.5 + (i / totalChunks) * 0.35;
-          reportProgress(progress, `Comprimiendo Huffman chunk ${i+1}/${totalChunks}`);
+          try {
+            const start = i * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, bwtData.length);
+            const chunk = bwtData.subarray(start, end);
+            
+            huffmanChunks.push(huffmanEncoder.encode(chunk));
+            
+            // Reportar progreso
+            const progress = 0.5 + (i / totalChunks) * 0.35;
+            reportProgress(progress, `Comprimiendo Huffman chunk ${i+1}/${totalChunks}`);
+          } catch (chunkError) {
+            console.error(`Error en chunk Huffman ${i}:`, chunkError);
+            throw new Error(`Fallo en compresión Huffman chunk ${i+1}/${totalChunks}`);
+          }
         }
         
         // Calcular tamaño total
@@ -207,7 +225,12 @@ self.onmessage = async (e) => {
           offset += chunk.length;
         }
       } else {
-        compressedData = huffmanEncoder.encode(bwtData);
+        try {
+          compressedData = huffmanEncoder.encode(bwtData);
+        } catch (error) {
+          console.error("Error en compresión Huffman:", error);
+          throw new Error("Fallo en compresión Huffman");
+        }
       }
     }
 
@@ -217,6 +240,7 @@ self.onmessage = async (e) => {
       compressedData = data;
       useBWT = false;
       isSpecialCase = false;
+      isUncompressed = true;
     }
 
     reportProgress(0.85, 'Empaquetando archivo');
@@ -235,7 +259,7 @@ self.onmessage = async (e) => {
     let flags = 0;
     if (useBWT) flags |= 1 << 0;        // Bit 0: BWT
     if (isSpecialCase) flags |= 1 << 1; // Bit 1: Caso especial
-    if (compressedData === data) flags |= 1 << 2; // Bit 2: Sin compresión
+    if (isUncompressed) flags |= 1 << 2; // Bit 2: Sin compresión
     
     view.setUint8(8, flags);
     
