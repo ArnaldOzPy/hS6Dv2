@@ -1,14 +1,25 @@
 const ALPHABET_SIZE = 256;
+const MAX_BLOCK_SIZE = 10485760; // 10MB
 
 export function createBWTProcessor() {
     return {
         process: function(data) {
+            if (data.length > MAX_BLOCK_SIZE) {
+                throw new Error(`El tamaño de datos (${formatSize(data.length)}) excede el límite máximo de BWT (${formatSize(MAX_BLOCK_SIZE)})`);
+            }
             return transform6D(data);
         },
         inverse: function(encoded) {
             return inverse6D(encoded);
         }
     };
+}
+
+function formatSize(bytes) {
+    if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(2) + ' GB';
+    if (bytes >= 1048576) return (bytes / 1048576).toFixed(2) + ' MB';
+    if (bytes >= 1024) return (bytes / 1024).toFixed(2) + ' KB';
+    return bytes + ' bytes';
 }
 
 function transform6D(data) {
@@ -36,8 +47,12 @@ function buildSuffixArray(data) {
     const n = data.length;
     const sa = Array.from({ length: n }, (_, i) => i);
     
+    // Optimización para archivos grandes: muestreo parcial
+    const sampleSize = Math.min(500000, n);
+    const step = Math.max(1, Math.floor(n / sampleSize));
+    
     sa.sort((a, b) => {
-        for (let i = 0; i < n; i++) {
+        for (let i = 0; i < n; i += step) {
             const aIdx = (a + i) % n;
             const bIdx = (b + i) % n;
             const diff = data[aIdx] - data[bIdx];
