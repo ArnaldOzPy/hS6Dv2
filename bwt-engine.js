@@ -35,12 +35,26 @@ function transform6D(data) {
 }
 
 function inverse6D(encoded) {
-    const view = new DataView(encoded.buffer);
+    // 1. Verificación crítica de longitud
+    if (encoded.length < 4) {
+        throw new Error("Datos codificados inválidos: longitud insuficiente para el índice");
+    }
+
+    // 2. Extraer el índice de forma segura
+    const header = encoded.subarray(0, 4);
+    const view = new DataView(header.buffer, header.byteOffset, header.length);
     const originalIndex = view.getUint32(0, true);
-    const rleData = new Uint8Array(encoded.buffer.slice(4));
-    const decodedRLE = decodeRLE(rleData);
-    const imtf = mtfDecode(decodedRLE);
-    return inverseBWT(imtf, originalIndex);
+
+    // 3. Extraer los datos RLE
+    const rleData = encoded.subarray(4);
+    
+    try {
+        const decodedRLE = decodeRLE(rleData);
+        const imtf = mtfDecode(decodedRLE);
+        return inverseBWT(imtf, originalIndex);
+    } catch (error) {
+        throw new Error(`Error en descompresión: ${error.message}`);
+    }
 }
 
 function buildSuffixArray(data) {
@@ -78,6 +92,10 @@ function applyBWT(data) {
         } else {
             bwt[i] = data[pos - 1];
         }
+    }
+    
+    if (originalIndex === -1) {
+        throw new Error("No se encontró el índice original en BWT");
     }
     
     return { bwt, originalIndex };
@@ -167,22 +185,36 @@ function encodeRLE(data) {
 function decodeRLE(encoded) {
     const output = [];
     let i = 0;
+    const n = encoded.length;
     
-    while (i < encoded.length) {
+    while (i < n) {
+        if (i + 1 > n) {
+            throw new Error("Datos RLE truncados: no hay suficientes bytes para el marcador");
+        }
         const marker = encoded[i++];
         
-        if (marker & 0x80) {
+        if (marker & 0x80) { // Run
+            if (i + 2 > n) {
+                throw new Error("Datos RLE de run incompletos: se esperaban 2 bytes adicionales");
+            }
             const runLength = ((marker & 0x7F) << 8) | encoded[i++];
             const value = encoded[i++];
+            
             for (let j = 0; j < runLength; j++) {
                 output.push(value);
             }
-        } else {
+        } else { // Literal
+            if (i + 2 > n) {
+                throw new Error("Datos RLE de literal incompletos: se esperaban 2 bytes para la longitud");
+            }
             const literalLength = (encoded[i++] << 8) | encoded[i++];
+            
+            if (i + literalLength > n) {
+                throw new Error(`Datos literales truncados: esperados ${literalLength} bytes, solo quedan ${n - i}`);
+            }
+            
             for (let j = 0; j < literalLength; j++) {
-                if (i < encoded.length) {
-                    output.push(encoded[i++]);
-                }
+                output.push(encoded[i++]);
             }
         }
     }
@@ -193,6 +225,11 @@ function decodeRLE(encoded) {
 function inverseBWT(bwtData, originalIndex) {
     try {
         const n = bwtData.length;
+        // Validación crítica del índice
+        if (originalIndex < 0 || originalIndex >= n) {
+            throw new Error(`Índice original inválido: ${originalIndex} (rango 0-${n-1})`);
+        }
+        
         const counts = new Array(ALPHABET_SIZE).fill(0);
         const starts = new Array(ALPHABET_SIZE);
         const links = new Array(n);
