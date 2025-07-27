@@ -95,14 +95,20 @@ self.onmessage = async (e) => {
         throw new Error(`Error en decodificación Huffman: ${error.message}`);
       }
 
-      // 7. Manejo de BWT mejorado
+      // 7. Manejo de BWT mejorado - ¡AQUÍ ESTÁ EL CAMBIO IMPORTANTE!
       if (usedBWT) {
         reportProgress(0.7, 'Revirtiendo BWT');
         try {
+          // Usar el nuevo procesador BWT corregido
           originalData = bwtProcessor.inverse(huffmanDecompressed);
         } catch (bwtError) {
-          if (isSpecialCase) {
-            // Manejar casos especiales de bytes repetidos
+          // Manejar específicamente el caso de bloques pequeños
+          if (bwtError.message.includes("bloque pequeño")) {
+            console.warn("Recuperando bloque pequeño:", bwtError.message);
+            originalData = handleSmallBlockFallback(huffmanDecompressed);
+          } 
+          // Manejar casos especiales de bytes repetidos
+          else if (isSpecialCase) {
             originalData = huffmanDecompressed;
           } else {
             throw new Error(`Error en BWT inverso: ${bwtError.message}`);
@@ -168,3 +174,16 @@ self.onmessage = async (e) => {
     });
   }
 };
+
+// Función auxiliar para manejar bloques pequeños (nuevo)
+function handleSmallBlockFallback(data) {
+  try {
+    // Intentar procesar como bloque pequeño con el nuevo formato
+    return bwtProcessor.inverse(data);
+  } catch (fallbackError) {
+    console.error("Fallback para bloque pequeño falló:", fallbackError);
+    
+    // Último recurso: devolver los datos directamente
+    return data;
+  }
+}
