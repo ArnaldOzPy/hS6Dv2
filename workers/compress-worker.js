@@ -11,7 +11,67 @@ function reportProgress(progress, stage) {
 }
 
 // Detección de binario (sin cambios)
-function isBinaryData(data) { /* ... */ }
+function isBinaryData(data) { 
+  // Detección mejorada para archivos pequeños
+  if (data.length < 16) return false;
+
+  const headers = [
+    [0xFF, 0xD8, 0xFF],        // JPEG
+    [0x89, 0x50, 0x4E, 0x47],  // PNG
+    [0x25, 0x50, 0x44, 0x46],  // PDF
+    [0x47, 0x49, 0x46, 0x38],  // GIF
+    [0x52, 0x49, 0x46, 0x46],  // WAV/AVI
+    [0x1A, 0x45, 0xDF, 0xA3],  // MKV
+    [0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70], // MP4 con tamaño
+    [0x66, 0x74, 0x79, 0x70], // MP4 sin tamaño
+    [0x49, 0x44, 0x33]         // MP3 ID3
+  ];
+
+  // Verificar cabeceras conocidas
+  for (const header of headers) {
+    if (data.length >= header.length && header.every((b, i) => data[i] === b)) {
+      return true;
+    }
+  }
+
+  // Cálculo de entropía optimizado para todos los tamaños
+  const freq = new Array(256).fill(0);
+  const sampleSize = Math.min(data.length, 1000000);
+  const step = Math.max(1, Math.floor(data.length / sampleSize));
+  let totalSamples = 0;
+  
+  for (let i = 0; i < data.length; i += step) {
+    freq[data[i]]++;
+    totalSamples++;
+  }
+
+  let entropy = 0;
+  let nonZero = 0;
+  
+  for (const count of freq) {
+    if (count > 0) {
+      nonZero++;
+      const p = count / totalSamples;
+      entropy -= p * Math.log2(p);
+    }
+  }
+
+  // Archivos con alta entropía o muchos valores únicos
+  return entropy > 7.3 || nonZero > 240;
+}
+
+function concatenateUint8Arrays(arrays) {
+  const totalLength = arrays.reduce((sum, arr) => sum + arr.length, 0);
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  
+  for (const arr of arrays) {
+    result.set(arr, offset);
+    offset += arr.length;
+  }
+  
+  return result;
+}
 
 self.onmessage = async (e) => {
   const data = new Uint8Array(e.data);
@@ -29,7 +89,7 @@ self.onmessage = async (e) => {
     const binary = isBinaryData(data);
     const useBWT = !binary;
     
-    reportProgress(0.3, binary ? 'Comprimiendo binario' : 'Aplicando BWT');
+    reportProgress(0.3, useBWT ? 'Aplicando BWT' : 'Comprimiendo binario');
 
     // 3. Procesamiento principal
     let processedData = data;
@@ -116,17 +176,3 @@ self.onmessage = async (e) => {
     });
   }
 };
-
-// Función auxiliar para combinar chunks
-function concatenateUint8Arrays(arrays) {
-  const totalLength = arrays.reduce((sum, arr) => sum + arr.length, 0);
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-  
-  for (const arr of arrays) {
-    result.set(arr, offset);
-    offset += arr.length;
-  }
-  
-  return result;
-}
