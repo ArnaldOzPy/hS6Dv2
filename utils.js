@@ -1,4 +1,7 @@
 export function crc32(buf) {
+    // Optimización para buffers grandes
+    if (!buf || buf.length === 0) return 0;
+    
     const table = new Uint32Array(256);
     for (let n = 0; n < 256; n++) {
         let c = n;
@@ -9,9 +12,18 @@ export function crc32(buf) {
     }
     
     let crc = 0 ^ (-1);
-    for (let i = 0; i < buf.length; i++) {
-        crc = table[(crc ^ buf[i]) & 0xFF] ^ (crc >>> 8);
+    const chunkSize = 65536;
+    const chunks = Math.ceil(buf.length / chunkSize);
+    
+    for (let chunk = 0; chunk < chunks; chunk++) {
+        const start = chunk * chunkSize;
+        const end = Math.min(start + chunkSize, buf.length);
+        
+        for (let i = start; i < end; i++) {
+            crc = table[(crc ^ buf[i]) & 0xFF] ^ (crc >>> 8);
+        }
     }
+    
     return (crc ^ (-1)) >>> 0;
 }
 
