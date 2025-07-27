@@ -1,25 +1,57 @@
 const ALPHABET_SIZE = 256;
 const MAX_BLOCK_SIZE = 10485760; // 10MB
+const MIN_BLOCK_SIZE = 4; // Mínimo tamaño viable para un bloque
 
 export function createBWTProcessor() {
     return {
         process: function(data) {
+            if (data.length === 0) return new Uint8Array(0);
             if (data.length > MAX_BLOCK_SIZE) {
-                throw new Error(`El tamaño de datos (${formatSize(data.length)}) excede el límite máximo de BWT (${formatSize(MAX_BLOCK_SIZE)})`);
+                throw new Error(`Tamaño de datos (${formatSize(data.length)}) excede el límite (${formatSize(MAX_BLOCK_SIZE)})`);
             }
+            
+            // Manejo especial para bloques muy pequeños
+            if (data.length < MIN_BLOCK_SIZE) {
+                return handleSmallBlock(data);
+            }
+            
             return transform6D(data);
         },
         inverse: function(encoded) {
+            if (encoded.length === 0) return new Uint8Array(0);
+            
+            // Manejo especial para bloques pequeños
+            if (encoded.length < MIN_BLOCK_SIZE) {
+                return handleSmallBlockInverse(encoded);
+            }
+            
             return inverse6D(encoded);
         }
     };
 }
 
-function formatSize(bytes) {
-    if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(2) + ' GB';
-    if (bytes >= 1048576) return (bytes / 1048576).toFixed(2) + ' MB';
-    if (bytes >= 1024) return (bytes / 1024).toFixed(2) + ' KB';
-    return bytes + ' bytes';
+function handleSmallBlock(data) {
+    // Almacenamos el tamaño original en los primeros 2 bytes
+    const output = new Uint8Array(data.length + 2);
+    const view = new DataView(output.buffer);
+    view.setUint16(0, data.length, true);
+    output.set(data, 2);
+    return output;
+}
+
+function handleSmallBlockInverse(encoded) {
+    if (encoded.length < 2) {
+        throw new Error("Bloque pequeño inválido: longitud insuficiente");
+    }
+    
+    const view = new DataView(encoded.buffer, encoded.byteOffset, 2);
+    const originalLength = view.getUint16(0, true);
+    
+    if (encoded.length - 2 !== originalLength) {
+        throw new Error(`Longitud de bloque pequeño inconsistente: esperado ${originalLength}, obtenido ${encoded.length - 2}`);
+    }
+    
+    return encoded.subarray(2);
 }
 
 function transform6D(data) {
@@ -35,17 +67,14 @@ function transform6D(data) {
 }
 
 function inverse6D(encoded) {
-    // 1. Verificación crítica de longitud
     if (encoded.length < 4) {
-        throw new Error("Datos codificados inválidos: longitud insuficiente para el índice");
+        throw new Error(`Datos codificados inválidos: se requieren 4 bytes para el índice, pero se recibieron ${encoded.length} bytes`);
     }
 
-    // 2. Extraer el índice de forma segura
     const header = encoded.subarray(0, 4);
     const view = new DataView(header.buffer, header.byteOffset, header.length);
     const originalIndex = view.getUint32(0, true);
 
-    // 3. Extraer los datos RLE
     const rleData = encoded.subarray(4);
     
     try {
@@ -56,6 +85,7 @@ function inverse6D(encoded) {
         throw new Error(`Error en descompresión: ${error.message}`);
     }
 }
+
 
 function buildSuffixArray(data) {
     const n = data.length;
