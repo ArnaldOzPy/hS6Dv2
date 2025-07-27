@@ -1,6 +1,6 @@
 const ALPHABET_SIZE = 256;
 const MAX_BLOCK_SIZE = 10485760; // 10MB
-const MIN_BLOCK_SIZE = 4; // Mínimo tamaño viable para un bloque
+const MIN_BLOCK_SIZE = 1; // Mínimo tamaño viable para un bloque
 
 export function createBWTProcessor() {
     return {
@@ -10,7 +10,7 @@ export function createBWTProcessor() {
                 throw new Error(`Tamaño de datos (${formatSize(data.length)}) excede el límite (${formatSize(MAX_BLOCK_SIZE)})`);
             }
             
-            // Manejo especial para bloques muy pequeños
+            // Manejo especial para bloques vacíos o mínimos
             if (data.length < MIN_BLOCK_SIZE) {
                 return handleSmallBlock(data);
             }
@@ -20,8 +20,12 @@ export function createBWTProcessor() {
         inverse: function(encoded) {
             if (encoded.length === 0) return new Uint8Array(0);
             
-            // Manejo especial para bloques pequeños
-            if (encoded.length < MIN_BLOCK_SIZE) {
+            // Identificar bloques especiales
+            if (isZeroBlock(encoded)) {
+                return new Uint8Array(0);
+            }
+            
+            if (isSmallBlock(encoded)) {
                 return handleSmallBlockInverse(encoded);
             }
             
@@ -30,34 +34,55 @@ export function createBWTProcessor() {
     };
 }
 
+// Nueva función para identificar bloques vacíos
+function isZeroBlock(encoded) {
+    return encoded.length === 1 && encoded[0] === 0xFF;
+}
+
+// Nueva función para identificar bloques pequeños
+function isSmallBlock(encoded) {
+    return encoded.length >= 2 && encoded[0] === 0xFE;
+}
+
 function handleSmallBlock(data) {
-    // Almacenamos el tamaño original en los primeros 2 bytes
+    // Caso especial: bloque vacío (0 bytes)
+    if (data.length === 0) {
+        return new Uint8Array([0xFF]); // Marcador especial
+    }
+    
+    // Caso: bloque pequeño (1-3 bytes)
     const output = new Uint8Array(data.length + 2);
-    const view = new DataView(output.buffer);
-    view.setUint16(0, data.length, true);
-    output.set(data, 2);
+    output[0] = 0xFE; // Marcador de bloque pequeño
+    output[1] = data.length; // Solo 1 byte para longitud (suficiente para 1-3 bytes)
+    
+    for (let i = 0; i < data.length; i++) {
+        output[i + 2] = data[i];
+    }
+    
     return output;
 }
 
 function handleSmallBlockInverse(encoded) {
-    if (encoded.length < 2) {
-        throw new Error("Bloque pequeño inválido: longitud insuficiente");
-    }
+    // El primer byte ya fue verificado (0xFE)
+    const originalLength = encoded[1];
     
-    const view = new DataView(encoded.buffer, encoded.byteOffset, 2);
-    const originalLength = view.getUint16(0, true);
-    
+    // Validar longitud consistente
     if (encoded.length - 2 !== originalLength) {
         throw new Error(`Longitud de bloque pequeño inconsistente: esperado ${originalLength}, obtenido ${encoded.length - 2}`);
     }
     
-    return encoded.subarray(2);
+    return encoded.subarray(2, 2 + originalLength);
 }
 
 function transform6D(data) {
     const { bwt, originalIndex } = applyBWT(data);
     const mtf = mtfEncode(bwt);
     const rle = encodeRLE(mtf);
+    
+    // Caso especial: compresión resultó en 0 bytes
+    if (rle.length === 0) {
+        return new Uint8Array([0xFF]); // Marcador de bloque vacío
+    }
     
     const output = new Uint8Array(rle.length + 4);
     const view = new DataView(output.buffer);
@@ -85,7 +110,6 @@ function inverse6D(encoded) {
         throw new Error(`Error en descompresión: ${error.message}`);
     }
 }
-
 
 function buildSuffixArray(data) {
     const n = data.length;
