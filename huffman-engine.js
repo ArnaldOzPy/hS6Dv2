@@ -342,11 +342,11 @@ function decodeData(encodedData, codes, lengths) {
         
         while (bitCount > 0) {
             const bit = (bitBuffer >> (bitCount - 1)) & 1;
-            
-            // CORRECCIÓN CRÍTICA: Manejo robusto de errores
             if (!node[bit]) {
-                // Recuperación: avanzar 1 bit y reiniciar
-                bitCount--;
+                // Fallback: usar valor literal
+                const literal = (bitBuffer >> (bitCount - 8)) & 0xFF;
+                output.push(literal);
+                bitCount -= 8;
                 node = root;
                 continue;
             }
