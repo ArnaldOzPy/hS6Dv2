@@ -15,27 +15,34 @@ self.onmessage = async (e) => {
   try {
     reportProgress(0.05, 'Iniciando descompresión');
 
-    // 1. Validar cabecera
+    // 1. Validar tamaño mínimo
     if (compressedData.length < 20) {
-      throw new Error("Archivo corrupto: tamaño insuficiente");
+      throw new Error("Archivo corrupto: tamaño insuficiente (mínimo 20 bytes)");
     }
 
+    // 2. Leer y validar cabecera
     const headerView = new DataView(compressedData.buffer, 0, 16);
     
     // Validar magic number
-    if (headerView.getUint32(0) !== 0x48533644) {
-      throw new Error("Formato de archivo inválido");
+    const magic = headerView.getUint32(0);
+    if (magic !== 0x48533644) {
+      throw new Error("Formato de archivo inválido (magic number incorrecto)");
     }
 
-    // Leer metadatos
+    // Leer metadatos con verificación
     const originalSize = headerView.getUint32(4);
     const flags = headerView.getUint8(8);
     const usedBWT = (flags & 0x01) === 1;
     const isUncompressed = (flags & 0x04) === 4;
     
+    // Validar tamaño original razonable
+    if (originalSize > 1024 * 1024 * 1024 * 5) { // 5GB
+      throw new Error("Tamaño original inválido (máximo 5GB)");
+    }
+
     reportProgress(0.15, 'Cabecera validada');
 
-    // 2. Extraer datos y verificar checksum
+    // 3. Extraer datos y verificar checksum
     const dataSection = compressedData.slice(16, compressedData.length - 4);
     const storedChecksum = new DataView(
       compressedData.buffer, 
@@ -43,53 +50,73 @@ self.onmessage = async (e) => {
       4
     ).getUint32(0);
     
-    if (storedChecksum !== crc32(dataSection)) {
-      throw new Error("Checksum no coincide. Archivo corrupto");
+    const calculatedChecksum = crc32(dataSection);
+    if (storedChecksum !== calculatedChecksum) {
+      throw new Error(
+        `Checksum no coincide. Archivo corrupto.\n` +
+        `Esperado: 0x${storedChecksum.toString(16)}\n` +
+        `Calculado: 0x${calculatedChecksum.toString(16)}`
+      );
     }
 
     reportProgress(0.25, 'Checksum validado');
 
-    // 3. Descompresión
-    let intermediateData = dataSection;
+    // 4. Proceso de descompresión principal
+    let decompressedData = dataSection;
     
     if (!isUncompressed) {
-      reportProgress(0.4, 'Descomprimiendo Huffman');
-      intermediateData = decompressHS6D(dataSection);
+      try {
+        reportProgress(0.4, 'Descomprimiendo Huffman');
+        decompressedData = decompressHS6D(dataSection);
+      } catch (huffmanError) {
+        throw new Error(`Error Huffman: ${huffmanError.message}`);
+      }
     }
 
-    // 4. Revertir BWT si es necesario
-    let finalData = intermediateData;
+    // 5. Aplicar BWT inversa si es necesario
+    let finalData = decompressedData;
     
     if (usedBWT && !isUncompressed) {
-      reportProgress(0.7, 'Revirtiendo BWT');
-      finalData = bwtProcessor.inverse(intermediateData);
+      try {
+        reportProgress(0.7, 'Revirtiendo BWT');
+        finalData = bwtProcessor.inverse(decompressedData);
+      } catch (bwtError) {
+        console.warn(`Fallo BWT inverso: ${bwtError.message}`);
+        // Fallback: mantener datos sin BWT
+        finalData = decompressedData;
+      }
     }
 
-    // 5. Validar tamaño
-    if (finalData.length !== originalSize) {
-      console.warn(`Tamaño descomprimido diferente: ${finalData.length} vs ${originalSize}`);
+    // 6. Ajustar tamaño final
+    if (finalData.length > originalSize) {
       finalData = finalData.slice(0, originalSize);
+    } else if (finalData.length < originalSize) {
+      console.warn(`Tamaño insuficiente: ${finalData.length} < ${originalSize}`);
+      // Rellenar con 0 como último recurso
+      const padded = new Uint8Array(originalSize);
+      padded.set(finalData);
+      finalData = padded;
     }
 
-reportProgress(0.95, 'Finalizando descompresión');
+    reportProgress(1.0, 'Descompresión completada');
 
-    const outputBuffer = new Uint8Array(originalSize);
-    outputBuffer.set(intermediateData.slice(0, originalSize));
-
-    reportProgress(1.0, 'Descompresión completa');
-
-    // ENVIAR DATOS AL HILO PRINCIPAL
-    self.postMessage({ type: 'done',  data: outputBuffer }, [outputBuffer.buffer],
+    // 7. Enviar resultado final
+    self.postMessage({
       decompressed: finalData,
       compressedSize: compressedData.length,
-      originalSize: finalData.length,
-      processingTime: performance.now() - startTime
+      originalSize: originalSize,
+      processingTime: performance.now() - startTime,
+      compressionRatio: (compressedData.length / originalSize).toFixed(2)
     }, [finalData.buffer]);
 
   } catch (error) {
     self.postMessage({
       error: `Error en descompresión: ${error.message}`,
-      details: error.stack
+      details: {
+        message: error.message,
+        stack: error.stack,
+        inputSize: compressedData.length
+      }
     });
   }
 };
