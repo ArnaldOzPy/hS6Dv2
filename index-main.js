@@ -1,4 +1,3 @@
-// index-main.js
 import { formatSize } from './utils.js';
 
 console.log("HyperStorage6D v2 iniciado");
@@ -50,7 +49,7 @@ function checkOperationLimit(type) {
   const subscription = localStorage.getItem('subscription');
   if (subscription) return true; // Usuario suscrito
   
-  if (operationCount[type] >= 100) {
+  if (operationCount[type] >= 2) {
     showSubscriptionModal();
     return false;
   }
@@ -81,21 +80,31 @@ document.getElementById('compressBtn').addEventListener('click', async () => {
 
   const file = fileInput.files[0]; 
   console.log("Iniciando compresión de:", file.name); 
+  
+  // Extraer nombre y extensión
+  const fileName = file.name.substring(0, file.name.lastIndexOf('.'));
+  const fileExtension = file.name.substring(file.name.lastIndexOf('.') + 1);
+  
   // Reiniciar estado 
   resetProgress('compress'); 
-  // Obtener tamaño del archivo 
   compressFileSize = file.size; 
   document.getElementById('originalSize').textContent = formatSize(compressFileSize); 
+  
   // Iniciar temporizador y seguimiento de progreso 
   compressStartTime = Date.now(); 
   startProgressTracking('compress'); 
+  
   const reader = new FileReader(); 
   reader.onload = async (e) => { 
     try { 
       const buffer = e.target.result; 
       const data = new Uint8Array(buffer); 
-      COMPRESS_WORKER.postMessage(data, [data.buffer]); 
-      console.log("Datos enviados al worker de compresión"); 
+      
+      COMPRESS_WORKER.postMessage({
+        data,
+        fileName,
+        fileExtension
+      }, [data.buffer]); 
     } catch (error) { 
       console.error("Error al procesar el archivo:", error); 
       showError("Error al procesar el archivo"); 
@@ -121,21 +130,32 @@ document.getElementById('decompressBtn').addEventListener('click', () => {
 
   const file = fileInput.files[0]; 
   console.log("Iniciando descompresión de:", file.name); 
+  
+  // Extraer nombre y extensión del archivo original
+  const originalFullName = file.name.replace('.hs6d', '');
+  const fileName = originalFullName.substring(0, originalFullName.lastIndexOf('.'));
+  const fileExtension = originalFullName.substring(originalFullName.lastIndexOf('.') + 1);
+  
   // Reiniciar estado 
   resetProgress('decompress'); 
-  // Obtener tamaño del archivo 
   const fileSize = file.size; 
   document.getElementById('inputCompressedSize').textContent = formatSize(fileSize); 
+  
   // Iniciar temporizador y seguimiento de progreso 
   decompressStartTime = Date.now(); 
   startProgressTracking('decompress', fileSize); 
+  
   const reader = new FileReader(); 
   reader.onload = (e) => { 
     try { 
       const buffer = e.target.result; 
       const data = new Uint8Array(buffer); 
-      DECOMPRESS_WORKER.postMessage(data, [data.buffer]); 
-      console.log("Datos enviados al worker de descompresión"); 
+      
+      DECOMPRESS_WORKER.postMessage({
+        data,
+        fileName,
+        fileExtension
+      }, [data.buffer]); 
     } catch (error) { 
       console.error("Error al procesar el archivo:", error); 
       showError("Error al procesar el archivo"); 
@@ -163,23 +183,29 @@ COMPRESS_WORKER.onmessage = (e) => {
     updateProgress('compress', e.data.progress * 100); 
     return; 
   } 
+  
   console.log("Compresión completada recibida del worker"); 
-  const { compressed, originalSize, compressedSize } = e.data; 
+  const { compressed, fileName, fileExtension, originalSize, compressedSize } = e.data; 
   const blob = new Blob([compressed], { type: 'application/hs6d' }); 
+  
   // Revocar la URL anterior si existe 
   if (lastCompressedUrl) { 
     URL.revokeObjectURL(lastCompressedUrl); 
   } 
+  
   const url = URL.createObjectURL(blob); 
-  lastCompressedUrl = url; // Guardar la nueva URL 
+  lastCompressedUrl = url; 
+  
   // Detener el seguimiento del progreso 
   stopProgressTracking('compress'); 
+  
   // Actualizar estadísticas 
   document.getElementById('compressedSize').textContent = formatSize(compressedSize); 
   document.getElementById('compressionRatio').textContent = (originalSize / compressedSize).toFixed(2) + ":1"; 
+  
   const link = document.getElementById('downloadCompressed'); 
   link.href = url; 
-  link.download = `compressed_${Date.now()}.hs6d`; 
+  link.download = `${fileName}.${fileExtension}.hs6d`; 
   link.style.display = 'block'; 
   
   // Incrementar contador después de operación exitosa
@@ -200,22 +226,28 @@ DECOMPRESS_WORKER.onmessage = (e) => {
     updateProgress('decompress', e.data.progress * 100); 
     return; 
   } 
+  
   console.log("Descompresión completada recibida del worker"); 
-  const { decompressed, compressedSize, originalSize } = e.data; 
+  const { decompressed, fileName, compressedSize, originalSize } = e.data; 
   const blob = new Blob([decompressed]); 
+  
   // Revocar la URL anterior si existe 
   if (lastDecompressedUrl) { 
     URL.revokeObjectURL(lastDecompressedUrl); 
   } 
+  
   const url = URL.createObjectURL(blob); 
-  lastDecompressedUrl = url; // Guardar la nueva URL 
+  lastDecompressedUrl = url; 
+  
   // Detener el seguimiento del progreso 
   stopProgressTracking('decompress'); 
+  
   // Actualizar estadísticas 
   document.getElementById('decompressedSize').textContent = formatSize(originalSize); 
+  
   const link = document.getElementById('downloadDecompressed'); 
   link.href = url; 
-  link.download = `original_${Date.now()}`; 
+  link.download = fileName; 
   link.style.display = 'block'; 
   
   // Incrementar contador después de operación exitosa
@@ -230,22 +262,27 @@ function startProgressTracking(type) {
 
   const prefix = type; 
   const startTime = Date.now(); 
+  
   // Actualizar cada 100ms 
   const interval = setInterval(() => { 
     const elapsed = (Date.now() - startTime) / 1000; 
     const percentage = parseFloat(document.getElementById(`${prefix}Percentage`).textContent) || 0; 
+    
     // Actualizar tiempo transcurrido 
     document.getElementById(`${prefix}Elapsed`).textContent = `${elapsed.toFixed(1)}s`; 
+    
     // Calcular tiempo restante si hay progreso 
     if (percentage > 0 && type === 'compress' && compressFileSize > 0) { 
       const remaining = (100 - percentage) * (elapsed / percentage); 
       document.getElementById(`${prefix}Remaining`).textContent = `${remaining.toFixed(1)}s`; 
+      
       // Calcular velocidad (MB/s) 
       const processedSize = (compressFileSize * percentage) / 100; 
       const speed = (processedSize / (1024 * 1024)) / elapsed; 
       document.getElementById(`${prefix}Speed`).textContent = `${speed.toFixed(2)} MB/s`; 
     } 
   }, 100); 
+  
   if (type === 'compress') { 
     compressInterval = interval; 
   } else { 
@@ -256,6 +293,7 @@ function startProgressTracking(type) {
 function stopProgressTracking(type) { 
   const prefix = type; 
   const startTime = type === 'compress' ? compressStartTime : decompressStartTime; 
+  
   if (startTime) { 
     const elapsed = (Date.now() - startTime) / 1000; 
     // Actualizar tiempo total 
@@ -281,11 +319,13 @@ function resetProgress(type) {
   document.getElementById(`${prefix}Elapsed`).textContent = '0s'; 
   document.getElementById(`${prefix}Remaining`).textContent = 'Calculando...'; 
   document.getElementById(`${prefix}Speed`).textContent = '0 MB/s'; 
+  
   // Resetear estadísticas 
   if (type === 'compress') { 
     document.getElementById('compressedSize').textContent = '-'; 
     document.getElementById('compressionRatio').textContent = '-'; 
     document.getElementById('downloadCompressed').style.display = 'none'; 
+    
     // Liberar URL de compresión anterior y resetear 
     if (lastCompressedUrl) { 
       URL.revokeObjectURL(lastCompressedUrl); 
@@ -294,6 +334,7 @@ function resetProgress(type) {
   } else { 
     document.getElementById('decompressedSize').textContent = '-'; 
     document.getElementById('downloadDecompressed').style.display = 'none'; 
+    
     // Liberar URL de descompresión anterior y resetear 
     if (lastDecompressedUrl) { 
       URL.revokeObjectURL(lastDecompressedUrl); 
