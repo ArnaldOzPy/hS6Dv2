@@ -1,4 +1,3 @@
-// bwt-engine.js
 const ALPHABET_SIZE = 256;
 const MAX_BLOCK_SIZE = 10485760; // 10MB
 const MIN_BLOCK_SIZE = 1;
@@ -258,6 +257,8 @@ function decodeRLE(encoded) {
   return new Uint8Array(output);
 }
 
+// ... (código anterior)
+
 function inverseBWT(bwtData, originalIndex) {
   const n = bwtData.length;
   if (originalIndex < 0 || originalIndex >= n) {
@@ -284,9 +285,16 @@ function inverseBWT(bwtData, originalIndex) {
 
   const output = new Uint8Array(n);
   let current = originalIndex;
-  for (let i = 0; i < n; i++) {
+  
+  // CORRECCIÓN: Reconstrucción mejorada con validación
+  for (let i = n - 1; i >= 0; i--) {
     output[i] = bwtData[current];
     current = links[current];
+    
+    // Validación de índice durante la reconstrucción
+    if (current < 0 || current >= n) {
+      throw new Error("Índice fuera de rango durante reconstrucción BWT");
+    }
   }
 
   return output;
