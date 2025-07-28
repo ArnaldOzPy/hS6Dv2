@@ -229,7 +229,7 @@ DECOMPRESS_WORKER.onmessage = (e) => {
   
   console.log("Descompresión completada recibida del worker"); 
   const { decompressed, fileName, compressedSize, originalSize } = e.data; 
-  const blob = new Blob([decompressed]); 
+  const blob = new Blob([decompressed], { type: 'application/octet-stream' }); 
   
   // Revocar la URL anterior si existe 
   if (lastDecompressedUrl) { 
