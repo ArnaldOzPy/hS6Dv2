@@ -49,7 +49,7 @@ function checkOperationLimit(type) {
   const subscription = localStorage.getItem('subscription');
   if (subscription) return true; // Usuario suscrito
   
-  if (operationCount[type] >= 100) {
+  if (operationCount[type] >= 1000) {
     showSubscriptionModal();
     return false;
   }
