@@ -19,32 +19,25 @@ self.onmessage = async (e) => {
 
     // 1. Validar tamaño mínimo
     if (compressedData.length < 20) {
-      throw new Error("Archivo corrupto: tamaño insuficiente (mínimo 20 bytes)");
+      throw new Error("Archivo corrupto: tamaño insuficiente");
     }
 
-    // 2. Leer y validar cabecera
     const headerView = new DataView(compressedData.buffer, 0, 16);
     
     // Validar magic number
-    const magic = headerView.getUint32(0);
-    if (magic !== 0x48533644) {
-      throw new Error("Formato de archivo inválido (magic number incorrecto)");
+    if (headerView.getUint32(0) !== 0x48533644) {
+      throw new Error("Formato de archivo inválido");
     }
 
-    // Leer metadatos con verificación
+    // Leer metadatos
     const originalSize = headerView.getUint32(4);
     const flags = headerView.getUint8(8);
     const usedBWT = (flags & 0x01) === 1;
     const isUncompressed = (flags & 0x04) === 4;
     
-    // Validar tamaño original razonable (5GB)
-    if (originalSize > 1024 * 1024 * 1024 * 5) {
-      throw new Error("Tamaño original inválido (máximo 5GB)");
-    }
-
     reportProgress(0.15, 'Cabecera validada');
 
-    // 3. Extraer datos y verificar checksum
+    // 2. Extraer datos y verificar checksum
     const dataSection = compressedData.slice(16, compressedData.length - 4);
     const storedChecksum = new DataView(
       compressedData.buffer, 
@@ -52,44 +45,42 @@ self.onmessage = async (e) => {
       4
     ).getUint32(0);
     
-    const calculatedChecksum = crc32(dataSection);
-    if (storedChecksum !== calculatedChecksum) {
-      throw new Error(
-        `Checksum no coincide. Archivo corrupto.\n` +
-        `Esperado: 0x${storedChecksum.toString(16).padStart(8, '0')}\n` +
-        `Calculado: 0x${calculatedChecksum.toString(16).padStart(8, '0')}`
-      );
+    if (storedChecksum !== crc32(dataSection)) {
+      throw new Error("Checksum no coincide. Archivo corrupto");
     }
 
     reportProgress(0.25, 'Checksum validado');
 
-    // 4. Proceso de descompresión principal
-    let decompressedData = dataSection;
+    // 3. Manejo especial para archivos vacíos
+    if (originalSize === 0) {
+      reportProgress(1.0, 'Archivo vacío procesado');
+      self.postMessage({ 
+        decompressed: new Uint8Array(0),
+        fileName: `${originalFileName}.${originalFileExtension}`,
+        compressedSize: compressedData.length,
+        originalSize: 0,
+        processingTime: performance.now() - startTime
+      });
+      return;
+    }
+
+    // 4. Descompresión
+    let intermediateData = dataSection;
     
     if (!isUncompressed) {
-      try {
-        reportProgress(0.4, 'Descomprimiendo Huffman');
-        decompressedData = decompressHS6D(dataSection);
-      } catch (huffmanError) {
-        throw new Error(`Error Huffman: ${huffmanError.message}`);
-      }
+      reportProgress(0.4, 'Descomprimiendo Huffman');
+      intermediateData = decompressHS6D(dataSection);
     }
 
-    // 5. Aplicar BWT inversa si es necesario
-    let finalData = decompressedData;
+    // 5. Revertir BWT si es necesario
+    let finalData = intermediateData;
     
     if (usedBWT && !isUncompressed) {
-      try {
-        reportProgress(0.7, 'Revirtiendo BWT');
-        finalData = bwtProcessor.inverse(decompressedData);
-      } catch (bwtError) {
-        console.warn(`Fallo BWT inverso: ${bwtError.message}`);
-        // Fallback: mantener datos sin BWT
-        finalData = decompressedData;
-      }
+      reportProgress(0.7, 'Revirtiendo BWT');
+      finalData = bwtProcessor.inverse(intermediateData);
     }
 
-    // 6. Ajustar tamaño final
+    // 6. Validar tamaño
     let outputData = finalData;
     if (finalData.length !== originalSize) {
       reportProgress(0.85, 'Ajustando tamaño');
@@ -97,8 +88,7 @@ self.onmessage = async (e) => {
       if (finalData.length > originalSize) {
         outputData = finalData.slice(0, originalSize);
       } else {
-        console.warn(`Tamaño insuficiente: ${finalData.length} < ${originalSize}`);
-        // Rellenar con 0 como último recurso
+        // Crear buffer con tamaño exacto
         const padded = new Uint8Array(originalSize);
         padded.set(finalData);
         outputData = padded;
@@ -112,7 +102,7 @@ self.onmessage = async (e) => {
     
     reportProgress(1.0, 'Descompresión completada');
 
-    // 8. Enviar resultado final
+    // 8. Enviar datos con metadatos
     self.postMessage({ 
       decompressed: outputData,
       fileName: outputFileName,
@@ -124,11 +114,7 @@ self.onmessage = async (e) => {
   } catch (error) {
     self.postMessage({
       error: `Error en descompresión: ${error.message}`,
-      details: {
-        message: error.message,
-        stack: error.stack,
-        inputSize: compressedData.length
-      }
+      details: error.stack
     });
   }
 };
