@@ -71,9 +71,15 @@ self.onmessage = async (e) => {
       finalData = finalData.slice(0, originalSize);
     }
 
-    reportProgress(1.0, 'Descompresión completada');
+reportProgress(0.95, 'Finalizando descompresión');
 
-    self.postMessage({
+    const outputBuffer = new Uint8Array(originalSize);
+    outputBuffer.set(intermediateData.slice(0, originalSize));
+
+    reportProgress(1.0, 'Descompresión completa');
+
+    // ENVIAR DATOS AL HILO PRINCIPAL
+    self.postMessage({ type: 'done',  data: outputBuffer }, [outputBuffer.buffer],
       decompressed: finalData,
       compressedSize: compressedData.length,
       originalSize: finalData.length,
