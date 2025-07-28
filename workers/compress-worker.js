@@ -67,6 +67,19 @@ self.onmessage = async (e) => {
   try {
     reportProgress(0.05, 'Iniciando análisis');
 
+    if (data.length === 0) {
+      reportProgress(1.0, 'Archivo vacío procesado');
+      self.postMessage({
+        compressed: new Uint8Array(0),
+        fileName,
+        fileExtension,
+        originalSize: 0,
+        compressedSize: 0,
+        processingTime: performance.now() - startTime
+      });
+      return;
+    }
+    
     // Validar tamaño máximo (2GB)
     if (data.length > 2147483647) {
       throw new Error("El archivo es demasiado grande (máximo 2GB)");
